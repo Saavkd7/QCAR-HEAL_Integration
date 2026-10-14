@@ -73,20 +73,24 @@ below — edit that file instead of typing flags every run. See
 
 ### `scripts/build/cooperative/` — the active, real pipeline
 
-**`build_coop_train_val_dataset.py`** — builds `CoopFront/`.
+**`build_coop_train_val_dataset.py`** — builds `CoopFront_Full/`: every capture session listed in `conf.json`, from raw data, in one run.
 
 | flag | `cooperative/conf.json` key (current value) | meaning |
 |---|---|---|
 | `--calib-root` | `calib_root` (`calibration/calibration_Matries`) | calibration tree root |
-| `--onboard-root` | `onboard_root` (`data/qcar_onboard/Training/ExperimentNo1`) | root holding `<ip>/dataset/` per car |
-| `--out-dir` | `out_dir` (`data/qcar_dataset/pipeline/datasets/CoopFront`) | where to write the dataset |
+| `--onboard-root` | `onboard_root` (`data/qcar_onboard/Training/ExperimentNo1`) | root of the ExperimentNo1 session (`<ip>/dataset/` per car); also what importers and `build_inference.py` read |
+| `--out-dir` | `out_dir` (`data/qcar_dataset/pipeline/datasets/CoopFront_Full`) | where to write the dataset |
 | `--vis-masks-dir` | `vis_masks_dir` (`.../pipeline/shared/visibility_masks`) | per-car BEV visibility masks |
 | `--walls-json` | `walls_json` (`.../pipeline/shared/walls.json`) | real wall geometry for occlusion |
-| `--val-indices` | `val_indices` (`""` = all train) | comma-separated trajectory indices held out for validate |
+| `--val-indices` | `val_indices` (`07,08`) | ExperimentNo1's validation trajectories (sessions with their own `val` list ignore it) |
 | `--agents` | `agents` (`1,2`) | comma-separated agent ids to include |
 | *(no flag)* | `pair_tolerance_sec` (`0.04`) | wall-time pairing tolerance |
-| *(no flag)* | `static_targets` | fixed Vicon poses of the parked cars |
+| *(no flag)* | `static_targets` | fixed Vicon poses of the parked QCars (ExperimentNo1) |
+| *(no flag)* | `marker_offsets` | marker-plate → centre offset per vehicle type: `qcar` measured directly, `third` from a 180° reversal test relative to `qcar` |
+| `--sessions` | `sessions` (all) | capture sessions to build: raw layout, per-agent folder, run pairing, scenario name, validation runs, static/dynamic targets |
 | `--max-trajectories` | `max_trajectories` (`null` = all) | cap to the first N trajectories -- a fast, real-data smoke-test build |
+
+**Adding a capture:** append a `sessions` entry; adding a vehicle with a different marker plate: add a `marker_offsets` entry (do the reversal test: two Vicon readings, car turned 180° inside the same taped wheel marks, plus the same test on a QCar as reference). No code change.
 
 **Destroys and rebuilds `--out-dir` every run** (`shutil.rmtree` then
 regenerate) — it is meant to be idempotent given the same inputs, not

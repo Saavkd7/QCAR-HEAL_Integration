@@ -50,7 +50,7 @@ real-data/real-code smoke-test build instead.
 
 | script | status | what it does |
 |---|---|---|
-| `cooperative/build_coop_train_val_dataset.py` | ✅ active | Builds `CoopFront/` — the main N-agent (currently 2) cooperative dataset (9 real trajectory pairs, 4-vehicle scenes with 2 static wall-occluded targets, real `wall_geometry.py` occlusion check). Destructive: rebuilds its output dir from scratch every run. `--max-trajectories N` caps it to a fast smoke-test subset. |
+| `cooperative/build_coop_train_val_dataset.py` | ✅ active | Builds `CoopFront_Full/` — the main N-agent (currently 2) cooperative dataset from every capture session in `conf.json` (ExperimentNo1: 9 trajectory pairs with 2 parked QCars; 2026-10-02/05: 35 runs with the dynamic third car), per-vehicle marker-to-centre offsets (`marker_offsets`), real `wall_geometry.py` occlusion check. Destructive: rebuilds its output dir from scratch every run. `--max-trajectories N` caps it to a fast smoke-test subset. |
 | `cooperative/build_inference.py` | ✅ active | Same real captures, no ground truth, builds `InferenceFront/` for pure deployment/inference. |
 | `cooperative/wall_geometry.py` | ✅ active | Real wall-segment occlusion geometry (`shared/walls.json`) — the only wall check the cooperative scripts use. |
 | `cooperative/Report_creation.py` | ✅ active | Reads `build_coop_train_val_dataset.py`'s own functions directly (no separate recomputation) to write a human-readable Markdown report per trajectory pair, plus an index, into `CoopFront/reports/` — closest-approach point, per-vehicle visibility, and how many of the 4 vehicles are ever simultaneously visible. |

@@ -28,7 +28,7 @@ the same settings that built the training data.
 ## Run
 
 ```bash
-python -m qcar.realtime.run                 # real cars (masters in conf.json "cars")
+python -m qcar.realtime.run                 # real cars (masters: conf.json "ros_master_uri" + each car's ip in calibration/vehicles.json)
 python -m qcar.realtime.run --no_model      # link check: receive + sync + pair + format only
 python -m qcar.realtime.run --record_dir data_live   # also save pairs in converter layout
 python -m qcar.realtime.run --no_view       # no windows (headless / SSH without X)

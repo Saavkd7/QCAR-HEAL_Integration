@@ -1,5 +1,5 @@
 """Show a single frame where all 3 real objects are simultaneously
-present as GT for ego (.198): the dynamic peer (.158), the wall-blocked
+present as GT for ego (qcar-52775): the dynamic peer (qcar-52776), the wall-blocked
 static (Node 9, detectable ONLY via cooperation), and the FOV-limited
 static (Node 11, ego's own camera once in range). Draws the model's REAL
 predicted boxes (pred_box_tensor) and labels each by nearest-match to its
@@ -76,7 +76,7 @@ with torch.inference_mode():
             return (c * dx + s * dy) * SCALE, (-s * dx + c * dy) * SCALE
 
         expect = {
-            "PEER(.158)": rel_of(peer),
+            "PEER(qcar-52776)": rel_of(peer),
             "NODE9_via_wall_coop": rel_of(t3),
             "NODE11_own_fov": rel_of(t4),
         }
@@ -109,7 +109,7 @@ with torch.inference_mode():
             print("  pred#%d center=(%.2f,%.2f) score=%.3f -> nearest=%s (d=%.2f)" %
                   (i, c[0], c[1], scores_np[i], match, best_d))
 
-        colors = {"PEER(.158)": (0, 255, 0), "NODE9_via_wall_coop": (255, 0, 255),
+        colors = {"PEER(qcar-52776)": (0, 255, 0), "NODE9_via_wall_coop": (255, 0, 255),
                   "NODE11_own_fov": (0, 200, 255), "UNMATCHED": (128, 128, 128)}
         for corners, label in zip(pred_np, labels):
             center = corners.mean(axis=0)

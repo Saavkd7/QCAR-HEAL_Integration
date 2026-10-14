@@ -3,8 +3,8 @@
 NOMINAL value (R_CB_NOMINAL, FRONT_MOUNT_XYZ -- Quanser hardware manual p.8)
 actually changes on THIS project's real captured data.
 
-We only have real calibration for agent "1" (qcar-52775/.198); agent "2"
-(qcar-52776/.158) still runs on the nominal value with no calibrated
+We only have real calibration for agent "1" (qcar-52775); agent "2"
+(qcar-52776) still runs on the nominal value with no calibrated
 alternative to compare against -- see build_coop_train_val_dataset.py's EXTRINSIC_PARAMS
 and the module docstring there. So this can only test agent "1"'s camera,
 using every OTHER vehicle (agent "2", both static targets) across all 9 real

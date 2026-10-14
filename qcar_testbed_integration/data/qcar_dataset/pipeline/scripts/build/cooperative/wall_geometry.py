@@ -1,6 +1,6 @@
 """Real wall-segment occlusion geometry for the physical QCar lab.
 
-Wall positions come from shared/walls.json (real, unscaled Vicon-frame
+Wall positions come from shared/scene.json's 'walls' (real, unscaled Vicon-frame
 metres -- the same frame as STATIC_TARGETS x/y and raw agent poses in
 build_coop_train_val_dataset.py, NOT the x10-scaled OPV2V coordinates written into
 the yaml). Measured from media/Walls_Layout+Scenario1.jpeg, user-confirmed
@@ -25,8 +25,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 def load_walls(path):
     """Returns a list of (a, b, id) tuples, a/b = (x, y) real-metre
-    endpoints, from the given walls.json. The path has no default here --
-    callers pass conf.json's walls_json (build_coop_train_val_dataset.WALLS)."""
+    endpoints, from the 'walls' list of the given scene.json. The path has no
+    default here -- callers pass conf.json's scene_json (build_coop_train_val_dataset.WALLS)."""
     with open(path) as f:
         doc = json.load(f)
     return [(tuple(w["a"]), tuple(w["b"]), w.get("id", "")) for w in doc["walls"]]
@@ -63,14 +63,14 @@ def which_wall_blocks(p_from, p_to, walls):
 
 if __name__ == "__main__":
     import sys
-    # walls_json from cooperative/conf.json (relative to qcar_testbed_integration/),
+    # scene_json from cooperative/conf.json (relative to qcar_testbed_integration/),
     # or a path passed as the only argument.
     if len(sys.argv) > 1:
         path = sys.argv[1]
     else:
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))))
         with open(os.path.join(HERE, "conf.json")) as f:
-            path = json.load(f)["walls_json"]
+            path = json.load(f)["scene_json"]
         path = path if os.path.isabs(path) else os.path.join(repo_root, path)
     walls = load_walls(path)
     print("Loaded %d wall(s) from %s:" % (len(walls), path))

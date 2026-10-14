@@ -48,13 +48,13 @@ Adopt the same two rules for any new script you add to this pipeline.
 
 Every default comes from `scripts/convert/conf.json`; each flag below
 overrides one key for one run. The shipped defaults point at trajectory 00
-of the `.198` car (`data/qcar_onboard/Training/ExperimentNo1/192.168.1.198/`);
+of the `qcar-52775` car (`data/qcar_onboard/Training/ExperimentNo1/qcar-52775/`);
 since that output already exists and `overwrite`/`add` are `false`, running
 with no flags refuses to touch it -- pass `--bag`/`--output` for a new bag.
 
 | flag | conf.json key (current value) | meaning |
 |---|---|---|
-| `--bag` | `bag` (trajectory 00 of `.198`) | path to the raw `.bag` |
+| `--bag` | `bag` (trajectory 00 of `qcar-52775`) | path to the raw `.bag` |
 | `--output` | `output` (its `converted_*_00/`) | output directory for the per-frame folders |
 | `--overwrite` / `--add` | `overwrite` / `add` (`false`) | delete, or append to, an existing output |
 | `--fps` | `fps` (10.0) | reference sampling rate |
@@ -81,16 +81,17 @@ below — edit that file instead of typing flags every run. See
 | `--onboard-root` | `onboard_root` (`data/qcar_onboard/Training/ExperimentNo1`) | root of the ExperimentNo1 session (`<ip>/dataset/` per car); also what importers and `build_inference.py` read |
 | `--out-dir` | `out_dir` (`data/qcar_dataset/pipeline/datasets/CoopFront_Full`) | where to write the dataset |
 | `--vis-masks-dir` | `vis_masks_dir` (`.../pipeline/shared/visibility_masks`) | per-car BEV visibility masks |
-| `--walls-json` | `walls_json` (`.../pipeline/shared/walls.json`) | real wall geometry for occlusion |
+| `--scene-json` | `scene_json` (`.../pipeline/shared/scene.json`) | track facts: walls (occlusion) and parked cars |
+| `--vehicles-json` | `vehicles_json` (`calibration/vehicles.json`) | per-car identity and camera extrinsics; offsets and box size come from its `physical_vehicle_footprints.json` |
 | `--val-indices` | `val_indices` (`07,08`) | ExperimentNo1's validation trajectories (sessions with their own `val` list ignore it) |
 | `--agents` | `agents` (`1,2`) | comma-separated agent ids to include |
 | *(no flag)* | `pair_tolerance_sec` (`0.04`) | wall-time pairing tolerance |
-| *(no flag)* | `static_targets` | fixed Vicon poses of the parked QCars (ExperimentNo1) |
-| *(no flag)* | `marker_offsets` | marker-plate → centre offset per vehicle type: `qcar` measured directly, `third` from a 180° reversal test relative to `qcar` |
 | `--sessions` | `sessions` (all) | capture sessions to build: raw layout, per-agent folder, run pairing, scenario name, validation runs, static/dynamic targets |
 | `--max-trajectories` | `max_trajectories` (`null` = all) | cap to the first N trajectories -- a fast, real-data smoke-test build |
 
-**Adding a capture:** append a `sessions` entry; adding a vehicle with a different marker plate: add a `marker_offsets` entry (do the reversal test: two Vicon readings, car turned 180° inside the same taped wheel marks, plus the same test on a QCar as reference). No code change.
+**Where each fact lives:** `conf.json` holds only paths and run parameters (repo-relative, or `${key}/...` for a folder that exists on one machine only, defined in that machine's untracked `qcar_testbed_integration/machine_paths.json`). Car facts: `calibration/vehicles.json` (identity, current ip, camera extrinsics) and `calibration/physical_vehicle_footprints.json` (Vicon-origin → box-centre offset and box size, a byte-exact copy of the lab's measurement record, SHA256-checked). Track facts: `shared/scene.json` (walls, parked QCars of ExperimentNo1).
+
+**Adding a capture:** append a `sessions` entry. **Re-measuring a car:** copy the lab's new `physical_vehicle_footprints.json` into `calibration/` and update `footprints.sha256` in `vehicles.json`. No code change.
 
 **Destroys and rebuilds `--out-dir` every run** (`shutil.rmtree` then
 regenerate) — it is meant to be idempotent given the same inputs, not

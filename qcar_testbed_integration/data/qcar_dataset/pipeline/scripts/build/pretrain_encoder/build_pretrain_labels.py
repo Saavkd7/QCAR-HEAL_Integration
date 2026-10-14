@@ -30,6 +30,8 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))  # scripts/build/<category>/ -> build/ -> scripts/ -> pipeline/
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(PIPELINE_ROOT)))  # -> qcar_testbed_integration/
+sys.path.insert(0, REPO_ROOT)
+import machine_paths  # noqa: E402
 DEFAULT_CONF = os.path.join(HERE, "conf.json")
 
 
@@ -45,9 +47,9 @@ def _load_conf(path):
 
 
 def _path_from_conf(key):
-    """conf.json path value; relative ones are resolved against REPO_ROOT."""
-    v = _conf.get(key)
-    return v if not v or os.path.isabs(str(v)) else os.path.join(REPO_ROOT, v)
+    """conf.json path value: relative -> REPO_ROOT, '${key}/...' -> this machine's
+    machine_paths.json (see machine_paths.py)."""
+    return machine_paths.resolve(_conf.get(key), REPO_ROOT)
 
 
 _pre = argparse.ArgumentParser(add_help=False)
@@ -92,8 +94,16 @@ MASK_PATH = _args.ego_vis_mask
 CALIB = _args.calib_root
 
 SCALE = 10.0
-QCAR_L, QCAR_W, QCAR_H = 0.425, 0.192, 0.190
-FRONT_MOUNT_XYZ = (0.1930, 0.0, 0.0953)
+# Car geometry: calibration/vehicles.json + its physical_vehicle_footprints.json
+# (conf.json's vehicles_json), the same files the cooperative builder reads.
+sys.path.insert(0, os.path.join(REPO_ROOT, "calibration"))
+import vehicle_calibration  # noqa: E402
+
+_VEH_DOC, _VEHICLES = vehicle_calibration.load_vehicles(_path_from_conf("vehicles_json"))
+_FOOTPRINTS = vehicle_calibration.load_footprints(_VEH_DOC)
+QCAR_L, QCAR_W, QCAR_H = vehicle_calibration.common_box_size(_VEH_DOC, _FOOTPRINTS)
+FRONT_MOUNT_XYZ = vehicle_calibration.cam_cords_mount(_VEH_DOC)
+EGO_CAR = _VEHICLES[str(_conf["ego_agent_id"])]["name"]
 IMG_W, IMG_H = 640, 480
 
 # opencood is importable directly once `python setup.py develop` has been run

@@ -4,7 +4,7 @@ Why this exists: capturing blind in 25 s takes and grading afterwards wasted
 several passes. This closes the loop -- it shows, live, which part of the lens
 is still unconstrained and tells the operator where to move the board.
 
-    python3 calib_web.py --car 192.168.1.198 --camera front
+    python3 calib_web.py --agent 1 --camera front   # agent id in calibration/vehicles.json
     then open http://<workstation-ip>:8000 on a phone
 
 Coverage is tracked in INCIDENCE ANGLE, not in image pixels: what matters is
@@ -72,7 +72,8 @@ _conf = _load_conf(_conf_path)
 ap = argparse.ArgumentParser()
 ap.add_argument("--conf", default=DEFAULT_CONF,
                  help="Path to the conf.json to read defaults from (default: %s)" % DEFAULT_CONF)
-ap.add_argument("--car", default=_conf["calib_car"])
+ap.add_argument("--agent", default=_conf["calib_agent"],
+                help="agent id in calibration/vehicles.json; the car is reached at its current ip")
 ap.add_argument("--camera", default=_conf["calib_camera"])
 ap.add_argument("--car-port", type=int, default=_conf["calib_car_port"])
 ap.add_argument("--http-port", type=int, default=_conf["calib_http_port"])
@@ -93,10 +94,13 @@ ap.add_argument("--initial-intrinsics", default=_conf.path_of("calib_initial_int
 ap.add_argument("--extrinsics", default=_conf.path_of("calib_extrinsics"),
                 help="NPZ providing fixed CAMERA_R_camera_to_vehicle/t_vehicle_m")
 A = ap.parse_args()
+with open(_conf.path_of("vehicles_json")) as _f:
+    _vehicle = json.load(_f)["vehicles"][str(A.agent)]
+A.car, A.car_name = _vehicle["ip"], _vehicle["name"]
 if A.capture_interval < 0 or A.novelty_px < 0 or A.square_size <= 0:
     ap.error("capture interval/novelty must be non-negative and square size positive")
 
-OUT = A.out.format(car=A.car.replace('.', '_'), camera=A.camera)
+OUT = A.out.format(car=A.car_name, camera=A.camera)
 os.makedirs(OUT, exist_ok=True)
 
 W, H = 640, 480

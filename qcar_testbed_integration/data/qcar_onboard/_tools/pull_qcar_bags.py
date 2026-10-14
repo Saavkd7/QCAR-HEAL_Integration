@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mirror a QCar's raw Vicon capture bags into qcar_onboard/<IP>/bags/.
+"""Mirror a QCar's raw Vicon capture bags into <local_root>/<car name>/bags/.
 
 Written 2026-09-17 to replace a transfer script that was lost (mentioned in
 the project's bug log as sync_198.sh / pull_all_bags.sh, used to pull
@@ -10,10 +10,10 @@ car keeps its bags somewhere other than the default.
 Read-only on the vehicle: probes + `tar -cf -`, nothing else. No install,
 no move, no delete on the car side.
 
-    python3 pull_qcar_bags.py 192.168.1.198
-    python3 pull_qcar_bags.py 192.168.1.158 --password <password>       # if SSH keys aren't set up on this machine
-    python3 pull_qcar_bags.py 192.168.1.198 --manifest-only          # re-describe what's already on disk, pull nothing
-    python3 pull_qcar_bags.py 192.168.0.200 --remote-dir /home/nvidia/qcar_bags  # a car with a different layout
+    python3 pull_qcar_bags.py 1                      # agent 1 of calibration/vehicles.json (its current ip)
+    python3 pull_qcar_bags.py 2 --password <password> # if SSH keys aren't set up on this machine
+    python3 pull_qcar_bags.py 1 --manifest-only      # re-describe what's already on disk, pull nothing
+    python3 pull_qcar_bags.py 2 --remote-dir /home/nvidia/qcar_bags  # a car with a different layout
 
 Needs `paramiko` (not in the heal38 env this project otherwise uses --
 found already installed under the `qlab` pyenv env, 2026-09-17, or
@@ -172,8 +172,8 @@ def main():
                     "that file and run with no args, or pass a flag/positional to override "
                     "it for one run.",
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("host", nargs="?", default=conf["host"],
-                     help="any QCar IP reachable on the lab network")
+    ap.add_argument("agent", nargs="?", default=conf["agent"],
+                     help="agent id in calibration/vehicles.json (default: conf.json's agent)")
     ap.add_argument("--conf", default=DEFAULT_CONF,
                      help="Path to the conf.json to read defaults from (default: %s)" % DEFAULT_CONF)
     ap.add_argument("--user", default=conf["user"])
@@ -182,15 +182,15 @@ def main():
     ap.add_argument("--remote-dir", default=conf["remote_dir"],
                     help="remote bags directory (default: conf.json's remote_dir)")
     ap.add_argument("--local-root", default=conf.path_of("local_root"),
-                    help="local folder holding one <host>/ per car (default: conf.json's local_root)")
+                    help="local folder holding one <car name>/ per car (default: conf.json's local_root)")
     ap.add_argument("--manifest-only", action="store_true", default=conf["manifest_only"],
                     help="only probe and rewrite the manifest; pull nothing")
     args = ap.parse_args()
 
-    if not args.host:
-        ap.error("host not set: pass it positionally, or set \"host\" in %s" % conf_path)
-
-    car_dir = os.path.join(args.local_root, args.host)
+    with open(conf.path_of("vehicles_json")) as f:
+        vehicle = json.load(f)["vehicles"][str(args.agent)]
+    args.host = vehicle["ip"]
+    car_dir = os.path.join(args.local_root, vehicle["name"])
     LOCAL_LABEL = conf["local_label"]
     os.makedirs(car_dir, exist_ok=True)
 
@@ -228,7 +228,7 @@ def main():
         "",
         "`%s`. Mirror of `%s` pulled on **%s**." % (facts["hostname"], args.remote_dir, stamp),
         "Read-only operation on the vehicle: probes + `tar -cf -`, nothing else.",
-        "Regenerate with `python3 _tools/pull_qcar_bags.py %s`." % args.host,
+        "Regenerate with `python3 _tools/pull_qcar_bags.py %s`." % args.agent,
         "",
         "## The car",
         "", "| fact | value |", "|---|---|",

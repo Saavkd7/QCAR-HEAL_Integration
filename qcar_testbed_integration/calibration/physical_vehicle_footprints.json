@@ -1,0 +1,119 @@
+{
+  "schema": "physical_vehicle_footprints/1",
+  "coordinate_units": "m",
+  "angle_units": "rad",
+  "units_verified": true,
+  "identity_verified": true,
+  "calibration_status": "unmeasured_candidate",
+  "motor_control_enabled": false,
+  "vehicles": {
+    "ego": {
+      "physical_identity": "Carro 1",
+      "research_role": "Ego",
+      "length_m": 0.425,
+      "width_m": 0.192,
+      "marker_to_center": {
+        "x_m": 0.03474432120351184,
+        "y_m": -0.022417966916566143,
+        "yaw_rad": 0
+      },
+      "offset_measurement": {
+        "input_frame": "world",
+        "input_x_m": 0.023,
+        "input_y_m": 0.01,
+        "reference_yaw_rad": 1.5160158027787067,
+        "saved_unix": 1791566528.0793
+      },
+      "marker_to_lidar_point": {
+        "x_m": 0.011244321203511837,
+        "y_m": -0.022417966916566143
+      },
+      "lidar_to_center_body": {
+        "x_m": 0.0235,
+        "y_m": 0.0
+      },
+      "lidar_reference_measurement": {
+        "front_distance_m": 0.236,
+        "rear_distance_m": 0.189,
+        "forward_correction_m": 0.0235,
+        "lateral_correction_m": 0.0,
+        "shared_placement_user_confirmed": true,
+        "width_centering_user_reported": true,
+        "independent_contact_validation_complete": false,
+        "source": "User physical measurements and shared LiDAR placement confirmation 2026-10-09"
+      }
+    },
+    "target": {
+      "physical_identity": "Carro 2",
+      "research_role": "Cooperador",
+      "length_m": 0.425,
+      "width_m": 0.192,
+      "marker_to_center": {
+        "x_m": 0.04509606009254556,
+        "y_m": -0.01912982458045971,
+        "yaw_rad": 0
+      },
+      "offset_measurement": {
+        "input_frame": "world",
+        "input_x_m": -0.020499999999999997,
+        "input_y_m": 0.0203,
+        "reference_yaw_rad": 3.0860114826770184,
+        "saved_unix": 1791566528.0793
+      },
+      "marker_to_lidar_point": {
+        "x_m": 0.021596060092545565,
+        "y_m": -0.01912982458045971
+      },
+      "lidar_to_center_body": {
+        "x_m": 0.0235,
+        "y_m": 0.0
+      },
+      "lidar_reference_measurement": {
+        "front_distance_m": 0.236,
+        "rear_distance_m": 0.189,
+        "forward_correction_m": 0.0235,
+        "lateral_correction_m": 0.0,
+        "shared_placement_user_confirmed": true,
+        "width_centering_user_reported": true,
+        "independent_contact_validation_complete": false,
+        "source": "User physical measurements and shared LiDAR placement confirmation 2026-10-09"
+      }
+    },
+    "third": {
+      "physical_identity": "Carro 3",
+      "research_role": "Convencional",
+      "length_m": 0.425,
+      "width_m": 0.192,
+      "marker_to_center": {
+        "x_m": 0.03475149206307987,
+        "y_m": 0.005356671200890586,
+        "yaw_rad": 0
+      },
+      "offset_measurement": {
+        "input_frame": "world",
+        "input_x_m": 0.0048,
+        "input_y_m": -0.0115,
+        "reference_yaw_rad": -1.6197214833760385,
+        "saved_unix": 1791566528.0793
+      },
+      "marker_to_lidar_point": {
+        "x_m": 0.011251492063079873,
+        "y_m": 0.005356671200890586
+      },
+      "lidar_to_center_body": {
+        "x_m": 0.0235,
+        "y_m": 0.0
+      },
+      "lidar_reference_measurement": {
+        "front_distance_m": 0.236,
+        "rear_distance_m": 0.189,
+        "forward_correction_m": 0.0235,
+        "lateral_correction_m": 0.0,
+        "shared_placement_user_confirmed": true,
+        "width_centering_user_reported": true,
+        "independent_contact_validation_complete": false,
+        "source": "User physical measurements and shared LiDAR placement confirmation 2026-10-09"
+      }
+    }
+  }
+}

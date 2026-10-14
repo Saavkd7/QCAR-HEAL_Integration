@@ -1,5 +1,5 @@
 {
-  "_comment": "THE defaults for every script in this folder -- the scripts hardcode none of these. Edit this file and run a script with NO flags. A CLI flag is optional and overrides the matching key for that one run only; no script ever writes this file. pool_quantv2x_repo / pool_python_paths / pool_config point at the sibling Concordia/Cooperative_Perception checkout (machine-specific, edit per machine). Relative paths are resolved against the qcar_testbed_integration/ root. The pool_*/pooling_groups_* defaults reproduce the real qcar52775 front trial map in qcar52775/latest_front/. calib_out may use {car} and {camera}. calib_seed/calib_seed_state: null = start a fresh session (no earlier views to preload). Keys are prefixed by the script that owns them:",
+  "_comment": "THE defaults for every script in this folder -- the scripts hardcode none of these. Edit this file and run a script with NO flags. A CLI flag is optional and overrides the matching key for that one run only; no script ever writes this file. pool_quantv2x_repo / pool_python_paths / pool_config point at the sibling Concordia/Cooperative_Perception checkout through ${quantv2x_repo} / ${coop_fusion_bench}, defined per machine in machine_paths.json. calib_agent: vehicles.json id of the car to calibrate (reached at its current ip). Relative paths are resolved against the qcar_testbed_integration/ root. The pool_*/pooling_groups_* defaults reproduce the real qcar52775 front trial map in qcar52775/latest_front/. calib_out may use {car} and {camera}. calib_seed/calib_seed_state: null = start a fresh session (no earlier views to preload). Keys are prefixed by the script that owns them:",
   "_owners": {
     "pooling_groups_*": "build_pooling_groups.py",
     "pool_*": "build_qcar_pooling_map.py",
@@ -9,11 +9,11 @@
   },
   "pooling_groups_map": "calibration/calibration_Matries/qcar52775/latest_front/qcar52775_front_x10_opencv_fisheye_trial.bin",
   "pooling_groups_output": "calibration/calibration_Matries/qcar52775/latest_front/qcar52775_front_x10_opencv_fisheye_trial.bin.groups",
-  "pool_quantv2x_repo": "/mnt/mainvolume/Backup/Projects/Concordia/Cooperative_Perception/repos/QuantV2X",
+  "pool_quantv2x_repo": "${quantv2x_repo}",
   "pool_python_paths": [
-    "/mnt/mainvolume/Backup/Projects/Concordia/Cooperative_Perception/bench/coop_fusion"
+    "${coop_fusion_bench}"
   ],
-  "pool_config": "/mnt/mainvolume/Backup/Projects/Concordia/Cooperative_Perception/repos/QuantV2X/.cache/checkpoints/heal_camera_attfuse/config.yaml",
+  "pool_config": "${quantv2x_repo}/.cache/checkpoints/heal_camera_attfuse/config.yaml",
   "pool_output": "calibration/calibration_Matries/qcar52775/latest_front/qcar52775_front_x10_opencv_fisheye_trial.bin",
   "pool_cameras": [
     "front"
@@ -27,7 +27,8 @@
   "pool_offset": 0.1,
   "pool_native": "640x480",
   "pool_ignore_z_bound": false,
-  "calib_car": "192.168.1.198",
+  "calib_agent": "1",
+  "vehicles_json": "calibration/vehicles.json",
   "calib_camera": "front",
   "calib_car_port": 55700,
   "calib_http_port": 8000,

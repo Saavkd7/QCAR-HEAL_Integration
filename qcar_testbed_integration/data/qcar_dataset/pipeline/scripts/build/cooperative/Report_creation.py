@@ -89,15 +89,15 @@ def analyze_pair(idx):
 
 
 def render_trajectory_md(r):
-    label_name = {"1": "ego (.198)", "2": "peer (.158)", "3": "Node 9 static", "4": "Node 11 static"}
+    label_name = {"1": "ego (qcar-52775)", "2": "peer (qcar-52776)", "3": "Node 9 static", "4": "Node 11 static"}
     lines = []
     lines.append(f"# Trajectory {r['idx']} ({r['split']})\n")
     if r["empty"]:
         lines.append("**No paired frames found for this trajectory.**\n")
         return "\n".join(lines)
 
-    lines.append(f"- Ego route (.198): `{r['route_ego']}`")
-    lines.append(f"- Peer route (.158): `{r['route_peer']}`")
+    lines.append(f"- Ego route (qcar-52775): `{r['route_ego']}`")
+    lines.append(f"- Peer route (qcar-52776): `{r['route_peer']}`")
     lines.append(f"- Recording start (UTC): {r['start_utc']}")
     lines.append(f"- Frames captured: ego={r['n_frames_a']}, peer={r['n_frames_b']} "
                  f"(ego span {r['duration_a_s']:.1f}s, peer span {r['duration_b_s']:.1f}s)")

@@ -2,8 +2,8 @@
 
 One folder per car, **named by its IP**. As of 2026-09-18 this directory only
 holds the two cars used by the offline Vicon-capture → HEAL/OPV2V pipeline
-(`CoopFront`): `192.168.1.198` (qcar-52775) and `192.168.1.158` (qcar-52776,
-the cooperating peer). The lab has two other QCars (`192.168.0.104`/`.144`)
+(`CoopFront`): qcar-52775 (ego) and qcar-52776 (the
+cooperating peer), one folder per car named after it. The lab has two other QCars (`192.168.0.104`/`.144`)
 used by a separate, unrelated on-device live-fusion project (TensorRT,
 no Vicon, no `.bag`) — their mirror was removed from here entirely on
 2026-09-17 since it had no relation to this pipeline.
@@ -65,8 +65,8 @@ per-frame conversion, produced **on the QCar's own Jetson**
 
 This onboard duplicate was deleted at the user's request on 2026-09-18 to
 stop the two similarly-shaped folders from being confused with each other
-(previously named `dataset/` on `.198` and, briefly, `10-Trajectories/` on
-`.158`). **Consequence: trajectory `_09`'s data no longer exists anywhere in
+(previously named `dataset/` on `qcar-52775` and, briefly, `10-Trajectories/` on
+`qcar-52776`). **Consequence: trajectory `_09`'s data no longer exists anywhere in
 this repo, for either car** — it was never used by `CoopFront` and its raw
 `.bag` was never kept either way, but if you need to re-investigate the open
 question in `PENDIENTE` about why the "10th trajectory" was never folded in,
@@ -86,10 +86,10 @@ Written 2026-09-17 to replace a transfer script that was lost
 (`sync_198.sh`/`pull_all_bags.sh`, never saved to any repo). Pulls a car's
 raw Vicon-capture `.bag` directory over SSH+tar into `<car>/bags/` — read-only
 on the vehicle, nothing installed/moved/deleted on the car side. Works
-against any QCar IP, not just `.198`/`.158`; pass `--remote-dir` if a car
+against any car in calibration/vehicles.json; pass `--remote-dir` if a car
 keeps its bags somewhere other than `_tools/conf.json`'s `remote_dir`
 (`/home/nvidia/Collection/qcar_bags`, confirmed for qcar-52775/52776). Every
-default (host `192.168.1.198`, user, remote dir, local destination
+default (agent `1` of calibration/vehicles.json, reached at its current ip; user, remote dir, local destination
 `local_root` = `Training/ExperimentNo1/`) lives in `_tools/conf.json`; run with
 no args or override per run. Uses SSH keys (`password: null`); pass
 `--password` if a car isn't key-authenticated yet -- never store it in conf.json. Needs `paramiko` (not in this project's `heal38` env; available in
@@ -99,9 +99,9 @@ during development, so treat it as unverified against real hardware even
 though its syntax is checked and its SSH+tar mechanism mirrors the one
 already proven for the other two QCars.
 ```bash
-python3 pull_qcar_bags.py 192.168.1.198
-python3 pull_qcar_bags.py 192.168.1.158 --password nvidia        # if keys aren't set up on this machine
-python3 pull_qcar_bags.py 192.168.1.198 --manifest-only          # re-probe only, pull nothing
+python3 pull_qcar_bags.py 1                          # agent id in calibration/vehicles.json
+python3 pull_qcar_bags.py 2 --password <password>   # if keys aren't set up on this machine
+python3 pull_qcar_bags.py 1 --manifest-only          # re-probe only, pull nothing
 ```
 
 ### `cross_check_vicon_labeling.py` — check the ego/target Vicon mislabeling bug
@@ -112,7 +112,7 @@ documented (but unfixed) ego/target Vicon mislabeling bug
 ```bash
 ~/.pyenv/versions/heal38/bin/python cross_check_vicon_labeling.py
 ```
-**Finding:** no. `.198` resolves `vicon_pose_key = "ego"` and `.158` resolves
+**Finding:** no. `qcar-52775` resolves `vicon_pose_key = "ego"` and `qcar-52776` resolves
 `"target"` in all 9 trajectories, with zero deviation — the roles never flip
 between sessions, so none of the 9 trajectories' `ego_vicon_pose.json`
 secretly holds the wrong car's position. Full reasoning (including a dead

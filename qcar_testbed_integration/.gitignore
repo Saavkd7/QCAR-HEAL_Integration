@@ -12,6 +12,9 @@
 /*
 !/.gitignore
 !/SCRIPTS.md
+!/machine_paths.py
+!/machine_paths.example.json
+# machine_paths.json (this machine's absolute paths) stays untracked
 !/media/
 !/notebooks/
 
@@ -39,6 +42,9 @@
 !/calibration/
 /calibration/*
 !/calibration/calibration_Matries/
+!/calibration/vehicles.json
+!/calibration/vehicle_calibration.py
+!/calibration/physical_vehicle_footprints.json
 /calibration/calibration_Matries/**/*.bin
 /calibration/calibration_Matries/**/*.bin.groups
 

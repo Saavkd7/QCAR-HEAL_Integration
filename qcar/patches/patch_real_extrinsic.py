@@ -35,9 +35,9 @@ data-refined rotation instead of FIX.
 
 WHERE THE NUMBERS COME FROM
 -----------------------------
-Nothing is hardcoded here. qcar/conf.json's vehicle_calibration_conf names
-the dataset builder's conf.json (the same file build_coop_train_val_dataset.py
-reads, so building and training cannot disagree): vehicles.<cav_id>.
+Nothing is hardcoded here. qcar/conf.json's vehicles_json names
+qcar_testbed_integration/calibration/vehicles.json (the same file the dataset
+builders read, so building and training cannot disagree): vehicles.<cav_id>.
 camera_extrinsic picks an entry of camera_extrinsics (R_cb, t_cb_m, source).
 Today: qcar-52775 uses its 19-point refined fit (2026-09-14, median
 reprojection error 7.7px); qcar-52776 uses the Quanser manual's nominal
@@ -55,7 +55,7 @@ from opencood.utils.transformation_utils import x_to_world
 from qcar import config
 
 _qcar_conf = config.load_conf(config.conf_path_from_argv())
-_calib = config.load_conf(_qcar_conf.path_of("vehicle_calibration_conf"))
+_calib = config.load_conf(_qcar_conf.path_of("vehicles_json"))
 _extr = _calib["camera_extrinsics"]
 
 

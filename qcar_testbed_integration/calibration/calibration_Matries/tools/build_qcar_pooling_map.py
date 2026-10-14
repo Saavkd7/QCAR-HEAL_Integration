@@ -49,6 +49,8 @@ import torch
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = str(HERE.parents[2])  # tools/ -> calibration_Matries/ -> calibration/ -> qcar_testbed_integration/
+sys.path.insert(0, REPO_ROOT)
+import machine_paths  # noqa: E402
 DEFAULT_CONF = HERE / "conf.json"
 
 
@@ -66,9 +68,9 @@ class _Conf(dict):
 
     def path_of(self, key):
         """Path-valued key: relative paths resolve against the
-        qcar_testbed_integration/ root (REPO_ROOT); null stays None."""
-        v = self[key]
-        return v if not v or os.path.isabs(v) else os.path.join(REPO_ROOT, v)
+        qcar_testbed_integration/ root (REPO_ROOT), '${key}/...' against this
+        machine's machine_paths.json; null stays None."""
+        return machine_paths.resolve(self[key], REPO_ROOT)
 
 
 def _load_conf(path):
@@ -87,7 +89,7 @@ REPO = Path(CONF.path_of("pool_quantv2x_repo"))
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 for _p in CONF["pool_python_paths"]:  # e.g. where export_coop_stages.py lives
-    sys.path.insert(0, _p if os.path.isabs(_p) else os.path.join(REPO_ROOT, _p))
+    sys.path.insert(0, machine_paths.resolve(_p, REPO_ROOT))
 
 from export_coop_stages import load_yaml                      # noqa: E402  (yaml fix included)
 from opencood.tools.export_lss_pooling_map import make_frustum, geometry   # noqa: E402

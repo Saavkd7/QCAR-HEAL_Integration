@@ -69,7 +69,7 @@ def parse_args():
     ap.add_argument("--model_dir", default=None,
                     help="trained run dir with resolved_hypes.json (default: conf model_dir)")
     ap.add_argument("--master", action="append", default=[], metavar="AGENT=URI",
-                    help="override one car's ROS master, e.g. 1=http://192.168.1.198:11311")
+                    help="override one car's ROS master, e.g. 1=http://192.168.0.73:11311")
     ap.add_argument("--cameras", default=None,
                     help="comma list of cameras to subscribe to (default: conf cameras)")
     ap.add_argument("--live_dir", default=None, help="tmpfs dir HEAL reads (default: conf)")
@@ -99,10 +99,10 @@ def parse_args():
     opt.output_jsonl = (config.cli_path(opt.output_jsonl) if opt.output_jsonl
                         else rt.path_of("output_jsonl"))
     opt.cameras = config.split_list(opt.cameras) if opt.cameras else list(rt["cameras"])
-    opt.masters = dict((k, v["master_uri"]) for k, v in rt["cars"].items())
+    opt.master_overrides = {}
     for item in opt.master:
         aid, _, uri = item.partition("=")
-        opt.masters[aid.strip()] = uri.strip()
+        opt.master_overrides[aid.strip()] = uri.strip()
     return opt, rt
 
 
@@ -124,7 +124,7 @@ class Recorder(threading.Thread):
     def __init__(self, root, session, bi, conv, syncs):
         threading.Thread.__init__(self, daemon=True)
         self.q = queue.Queue(maxsize=64)
-        self.dirs = dict((aid, os.path.join(root, bi.CAR_REGISTRY[aid]["ip"], "dataset",
+        self.dirs = dict((aid, os.path.join(root, bi.CAR_REGISTRY[aid]["name"], "dataset",
                                             "converted_live_%s" % session))
                          for aid in bi.CAR_REGISTRY)
         self.conv, self.syncs = conv, syncs
@@ -163,6 +163,9 @@ def main():
     sync_conf = json.load(open(rt.path_of("convert_conf")))
     agents = sorted(bi.CAR_REGISTRY)
     ego_id, peer_id = bi.EGO_ID, bi.PEER_ID
+    # each car's ROS master: its current IP (calibration/vehicles.json) in conf.json's ros_master_uri
+    opt.masters = dict((a, rt["ros_master_uri"].format(ip=bi.CAR_REGISTRY[a]["ip"])) for a in agents)
+    opt.masters.update(opt.master_overrides)
     missing = [a for a in agents if a not in opt.masters]
     if missing:
         raise SystemExit("no ROS master configured for agent(s) %s" % missing)
@@ -185,7 +188,7 @@ def main():
             sub.agent, sub.name = aid, name
             sub.start()
             subs.append(sub)
-        print("[realtime] agent %s (%s) <- %s" % (aid, bi.CAR_REGISTRY[aid]["car_label"],
+        print("[realtime] agent %s (%s) <- %s" % (aid, bi.CAR_REGISTRY[aid]["name"],
                                                   opt.masters[aid]))
 
     recorder = None
@@ -204,9 +207,9 @@ def main():
             print("[realtime] no DISPLAY -- viewer disabled (use --no_view to silence this)")
         else:
             from qcar.realtime.viewer import LiveViewer
-            walls = json.load(open(bi._path_from_conf("walls_json")))["walls"]
+            walls = json.load(open(bi._path_from_conf("scene_json")))["walls"]
             viewer = LiveViewer(agents, ego_id,
-                                dict((a, bi.CAR_REGISTRY[a]["car_label"]) for a in agents),
+                                dict((a, bi.CAR_REGISTRY[a]["name"]) for a in agents),
                                 dict((a, bi.CAM_PARAMS[a]["K"]) for a in agents),
                                 walls, rt["view_bev_range_m"], rt["view_max_hz"])
             print("[realtime] viewer open: 2 POV windows + bird's-eye view (q to stop)")

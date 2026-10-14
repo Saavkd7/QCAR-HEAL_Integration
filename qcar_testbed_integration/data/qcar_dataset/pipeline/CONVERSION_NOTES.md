@@ -21,7 +21,7 @@ pipeline/
     diagnose/   diagnose_*.py, find_nan_frame.py, compare_extrinsic_nominal_vs_calibrated.py
     visualize/  visualize_boxes.py, analyze_bev_visibility_mask.py
   datasets/     CoopFront/, SmokeTestFront/, SmokeTestFront_dev/, PretrainFront/
-  shared/       visibility_masks/, walls.json, evidence_through_wall/, pairing_by_walltime.json,
+  shared/       visibility_masks/, scene.json (walls + parked cars), evidence_through_wall/, pairing_by_walltime.json,
                 pretrain_labels.json, pretrain_manifest.json
   CONVERSION_NOTES.md   (this file)
 ```
@@ -52,7 +52,7 @@ qcar_onboard/<ip>/dataset/converted_<trajectory>/<frame>/    per-frame PNGs + Vi
 datasets/CoopFront/{train,validate}/<scenario>/<cav_id>/<frame>.yaml + _camera0.png   the trained dataset
 ```
 
-`cav_id` folders: `1` = qcar-52775 (`.198`), `2` = qcar-52776 (`.158`).
+`cav_id` folders: `1` = qcar-52775, `2` = qcar-52776.
 Only one real camera per agent is written (`camera0` = front) — HEAL's
 `OPV2VBaseDataset.find_camera_files()` is hardcoded to expect exactly 4
 paths, so `camera_attfuse_coop.yaml`'s config relies on the same

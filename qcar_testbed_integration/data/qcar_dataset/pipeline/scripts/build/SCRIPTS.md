@@ -21,7 +21,7 @@ and `build_train_val_dataset.py` deleted (see "Deleted" at the bottom).
   where you don't know the answer in advance.
 
 - **`wall_geometry.py`** — real wall-segment occlusion geometry (loads
-  `shared/walls.json`, 5 measured segments). Used by
+  `shared/scene.json`, 5 measured segments). Used by
   `build_coop_train_val_dataset.py` (and by `diagnose_coop_breakdown.py`,
   `compare_extrinsic_nominal_vs_calibrated.py` in `scripts/diagnose/`) to
   decide, per real frame, whether a physical wall blocks an agent's line of

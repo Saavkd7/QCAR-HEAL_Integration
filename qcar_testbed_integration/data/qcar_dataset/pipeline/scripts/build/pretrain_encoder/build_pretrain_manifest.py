@@ -1,7 +1,7 @@
 """Filter the 101-scenario collision corpus down to usable front-camera frames.
 
 Source: conf.json's src_root (the 101-scenario corpus on external media)
-Captured with qcar-52775 (192.168.1.198) per Kevin, front camera only.
+Captured with qcar-52775 per Kevin, front camera only.
 
 A frame is kept only if:
   - front.png exists and is not the black warm-up frame (mean pixel > BLACK_THRESHOLD)
@@ -28,6 +28,8 @@ from PIL import Image
 HERE = Path(__file__).resolve().parent
 PIPELINE_ROOT = HERE.parent.parent.parent  # scripts/build/<category>/ -> build/ -> scripts/ -> pipeline/
 REPO_ROOT = str(PIPELINE_ROOT.parent.parent.parent)  # -> qcar_testbed_integration/
+sys.path.insert(0, REPO_ROOT)
+import machine_paths  # noqa: E402
 DEFAULT_CONF = HERE / "conf.json"
 
 
@@ -43,9 +45,9 @@ def _load_conf(path):
 
 
 def _path_from_conf(key):
-    """conf.json path value; relative ones are resolved against REPO_ROOT."""
-    v = _conf.get(key)
-    return v if not v or os.path.isabs(str(v)) else os.path.join(REPO_ROOT, v)
+    """conf.json path value: relative -> REPO_ROOT, '${key}/...' -> this machine's
+    machine_paths.json (see machine_paths.py)."""
+    return machine_paths.resolve(_conf.get(key), REPO_ROOT)
 
 
 _pre = argparse.ArgumentParser(add_help=False)

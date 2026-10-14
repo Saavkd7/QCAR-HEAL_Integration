@@ -4,7 +4,7 @@
 a machine with no ROS1 install at all.
 
 Logic ported 1:1 from
-  nvidia@192.168.1.198:/home/nvidia/ros1/src/qcar_bag_collection/scripts/static_bag_to_dataset.py
+  nvidia@<qcar-52775>:/home/nvidia/ros1/src/qcar_bag_collection/scripts/static_bag_to_dataset.py
 (fetched 2026-09-13). Same topics, same causal-bounded-wait synchronization,
 same --vicon-pose-key auto resolution, same --trim-to-motion logic, same
 output schema (front/back/left/right.png + ego_vicon_pose.json +

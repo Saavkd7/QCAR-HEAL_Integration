@@ -21,7 +21,7 @@ overwrite HEAL's current pooling map.
 
 ## Latest front calibration
 
-### QCar qcar-52775 (`192.168.1.198`)
+### QCar qcar-52775 
 
 - Images examined/detected/used: 641 / 369 / 344
 - Selected model: full fisheye k1-k4
@@ -49,7 +49,7 @@ Front-only HEAL map:
 - Maximum valid index: 65,532; out-of-range indices: 0
 - Map/group integrity: PASS
 
-### QCar qcar-52776 (`192.168.1.158`)
+### QCar qcar-52776 
 
 - Web calibration completion: `done=true`, 86 captures
 - Images detected/used: 83 / 83

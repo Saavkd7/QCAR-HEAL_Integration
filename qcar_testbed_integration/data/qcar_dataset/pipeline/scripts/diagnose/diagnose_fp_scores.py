@@ -11,7 +11,7 @@ For every validate frame, finds the nearest surviving prediction (already
 decode+NMS+score_threshold-filtered by VoxelPostprocessor, same as training
 labels) to Node 9's expected relative position, using the SAME distance
 convention as diagnose_coop_breakdown.py (DIST_THRESH_X10=3.0, i.e. ~0.3m).
-Buckets that nearest-prediction's score by whether the peer (.158) actually
+Buckets that nearest-prediction's score by whether the peer (qcar-52776) actually
 sees Node 9 in that frame:
   - peer sees it  -> a matched nearby prediction is a real true positive
   - peer blind    -> a matched nearby prediction is the false positive being

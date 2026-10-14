@@ -11,7 +11,7 @@ REAL ARCHITECTURE (confirmed 2026-09-18 by reading both bags' raw
 self-reporting "I am ego, my peer is target". It's ONE shared broadcast --
 every message on `/qcar/vicon`, in BOTH bags, carries the SAME two absolute
 positions under `data.ego` / `data.target`. Verified directly: at matching
-wall-clock times, .198's raw "ego" field equals .158's raw "ego" field
+wall-clock times, qcar-52775's raw "ego" field equals qcar-52776's raw "ego" field
 (sub-mm), and same for "target" -- i.e. "ego"/"target" are fixed GLOBAL
 roles for the whole capture session, not a per-car self/peer distinction.
 An earlier version of this script assumed the self/peer model and reported
@@ -21,13 +21,13 @@ not a real finding. Left in `--diagnostic` mode below for reference only.
 THE CHECK THAT ACTUALLY MATTERS: since each car's `bag_to_dataset_rosbags.py`
 run picks ONE field (named by `vicon_pose_key`) to save as that car's own
 `ego_vicon_pose.json`, the only way the bug bites is if a car's resolved key
-ever flips between sessions -- e.g. if .198 (normally "ego") resolved
+ever flips between sessions -- e.g. if qcar-52775 (normally "ego") resolved
 "target" for some trajectory, its saved `ego_vicon_pose.json` would silently
-hold .158's position instead of its own. This script's default mode checks
+hold qcar-52776's position instead of its own. This script's default mode checks
 exactly that: `resolved_vicon_pose_key` per trajectory per car, looking for
 any deviation from that car's majority/expected role.
 
-Result as of 2026-09-18: .198 resolves "ego" and .158 resolves "target" in
+Result as of 2026-09-18: qcar-52775 resolves "ego" and qcar-52776 resolves "target" in
 ALL 9 trajectories (`_00`-`_08`), zero exceptions -- no evidence the
 mislabeling bug affected any trajectory CoopFront actually uses.
 
@@ -104,29 +104,29 @@ TRAJECTORIES = _conf["cross_check_trajectories"]
 DEFAULT_TOLERANCE_SEC = _conf["cross_check_tolerance_sec"]  # a bit over one Vicon period (~48.7 Hz => ~20.5ms)
 
 
-def car_dir(ip):
-    return os.path.join(ONBOARD, "192.168.1.%s" % ip)
+def car_dir(car_name):
+    return os.path.join(ONBOARD, car_name)
 
 
-def bag_path(ip, traj):
+def bag_path(car_name, traj):
     """Raw .bag lives under <car>/bags/<trajectory>/ (separate from the
     converted per-frame output, which lives under <car>/dataset/)."""
-    prefix = CARS[ip]["prefix"]
-    return os.path.join(car_dir(ip), "bags", prefix + traj, prefix + traj + ".bag")
+    prefix = CARS[car_name]["prefix"]
+    return os.path.join(car_dir(car_name), "bags", prefix + traj, prefix + traj + ".bag")
 
 
-def converted_metadata_path(ip, traj):
+def converted_metadata_path(car_name, traj):
     """Converted-frame metadata lives under <car>/dataset/converted_<trajectory>/."""
-    prefix = CARS[ip]["prefix"]
-    return os.path.join(car_dir(ip), "dataset", "converted_" + prefix + traj, "metadata.json")
+    prefix = CARS[car_name]["prefix"]
+    return os.path.join(car_dir(car_name), "dataset", "converted_" + prefix + traj, "metadata.json")
 
 
 # ---------------------------------------------------------------------------
 # Primary check: resolved_vicon_pose_key consistency across trajectories
 # ---------------------------------------------------------------------------
 
-def resolved_key(ip, traj):
-    path = converted_metadata_path(ip, traj)
+def resolved_key(car_name, traj):
+    path = converted_metadata_path(car_name, traj)
     if not os.path.exists(path):
         return None
     with open(path) as f:
@@ -134,10 +134,10 @@ def resolved_key(ip, traj):
 
 
 def run_consistency_check(trajectories):
-    per_car = {ip: {} for ip in CARS}
-    for ip in CARS:
+    per_car = {car_name: {} for car_name in CARS}
+    for car_name in CARS:
         for traj in trajectories:
-            per_car[ip][traj] = resolved_key(ip, traj)
+            per_car[car_name][traj] = resolved_key(car_name, traj)
 
     print("%-6s %10s %10s" % ("traj", "198", "158"))
     print("-" * 28)
@@ -145,22 +145,22 @@ def run_consistency_check(trajectories):
         print("%-6s %10s %10s" % (traj, per_car["198"][traj], per_car["158"][traj]))
 
     flagged = []
-    for ip in CARS:
-        values = [v for v in per_car[ip].values() if v is not None]
+    for car_name in CARS:
+        values = [v for v in per_car[car_name].values() if v is not None]
         if not values:
             continue
         majority = max(set(values), key=values.count)
-        for traj, v in per_car[ip].items():
+        for traj, v in per_car[car_name].items():
             if v is not None and v != majority:
-                flagged.append((ip, traj, v, majority))
+                flagged.append((car_name, traj, v, majority))
 
     print()
     if flagged:
         print("FLAGGED -- role differs from this car's majority resolved key:")
-        for ip, traj, v, majority in flagged:
+        for car_name, traj, v, majority in flagged:
             print("  .%s trajectory %s resolved '%s', expected '%s' (majority) "
                   "-- ego_vicon_pose.json for this frame likely holds the WRONG car's position"
-                  % (ip, traj, v, majority))
+                  % (car_name, traj, v, majority))
     else:
         print("No deviations: each car resolved the same Vicon role in every "
               "trajectory checked. No evidence the mislabeling bug affected "
@@ -257,7 +257,7 @@ def main():
     parser.add_argument("--conf", default=DEFAULT_CONF,
                         help="conf.json to read defaults from (default: %s)" % DEFAULT_CONF)
     parser.add_argument("--onboard-root", default=ONBOARD,
-                        help="folder holding one 192.168.1.<ip>/ per car (default: conf.json's cross_check_onboard_root)")
+                        help="folder holding one <car name>/ per car (default: conf.json's cross_check_onboard_root)")
     parser.add_argument("--trajectories", nargs="*", default=TRAJECTORIES)
     parser.add_argument("--tolerance", type=float, default=DEFAULT_TOLERANCE_SEC)
     parser.add_argument("--diagnostic", action="store_true",

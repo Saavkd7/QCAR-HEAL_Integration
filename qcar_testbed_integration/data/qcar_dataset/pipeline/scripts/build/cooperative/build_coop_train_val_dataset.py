@@ -35,7 +35,7 @@ Pipeline, mirroring build_smoketest_dataset.py's conventions:
     loaded cav's filtered result, deduped by id -- pre-filtering here would
     only ever DROP targets HEAL's own mask would have kept).
   - Wall occlusion: user-decided 2026-09-22 to always go by REAL geometry
-    (WALLS, loaded from shared/walls.json via wall_geometry.py -- 5 real
+    (WALLS, loaded from shared/scene.json via wall_geometry.py -- 5 real
     wall segments measured from media/Walls_Layout+Scenario1.jpeg) rather
     than a fixed hand-confirmed pair fact, even though that geometry is
     known-incomplete (validated 2026-09-22: only reproduces 73.9%/79.1% of
@@ -72,12 +72,12 @@ N-agent generalization (new in this revision):
     declared here explicitly, NOT auto-derived by sorting IP strings on
     disk -- physical facts (wall geometry, static target positions) are
     tied to a SPECIFIC car's identity, and a sort-order-based id assignment
-    could silently swap which car a fact applies to (e.g. "192.168.1.158"
-    sorts before "192.168.1.198" lexicographically, which would flip agent
+    could silently swap which car a fact applies to (e.g. one car's folder
+    sorting before the other's lexicographically, which would flip agent
     "1"/"2" from their established meaning). Adding a 3rd+ car means adding
     its own registry entry, its own EXTRINSIC_PARAMS entry (real measured
     or at least real nominal-manual geometry -- never fabricated), and
-    updating shared/walls.json/STATIC_TARGETS if new physical occlusion
+    updating shared/scene.json/STATIC_TARGETS if new physical occlusion
     facts apply.
   - pair_frames(frames_a, frames_b) was retired -- every importer
     (Report_creation.py, the diagnose_*.py scripts, main() itself) now
@@ -102,10 +102,12 @@ Capture sessions and per-vehicle centres (2026-10-06):
     (static_targets) and/or a dynamic target whose Vicon pose is broadcast in
     every frame (dynamic_target, e.g. the third car, id 3, pose taken from the
     reference agent's frame).
-  - The marker-plate -> centre offset is per vehicle TYPE (conf.json's
-    marker_offsets): every QCar shares the measured QCar offset; the third
-    car has its own, from a 180-degree reversal test (reversal_center_offset).
-    The yaml's qcar_provenance.marker_offset_applied_m records, per listed
+  - Physical facts are not in this file nor in conf.json:
+    calibration/vehicles.json (identity, camera extrinsics), the lab's
+    physical_vehicle_footprints.json (Vicon-origin -> box-centre offset and
+    box size of every car, SHA256-checked) and shared/scene.json (walls,
+    parked cars), all read through calibration/vehicle_calibration.py.
+    Each vehicle uses its own measured offset. The yaml's qcar_provenance.marker_offset_applied_m records, per listed
     vehicle id, the offset actually used.
   - Output keeps the established layout; scenario names come from the
     session template (qcar_coop_<NN> for ExperimentNo1).
@@ -118,7 +120,8 @@ targets, marker offsets) lives in conf.json next to this script; edit it
 there. Flags are optional one-run overrides for anyone who doesn't want to
 touch the file:
     --conf <path>  --calib-root <dir>  --onboard-root <dir>  --out-dir <dir>
-    --vis-masks-dir <dir>  --walls-json <file>  --val-indices 07,08
+    --vis-masks-dir <dir>  --scene-json <file>  --val-indices 07,08
+    --vehicles-json <file>
     --agents 1,2  --max-trajectories N  --sessions ExperimentNo1,2026-10-05
 """
 import argparse
@@ -139,6 +142,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))  # scripts/build/<category>/ -> build/ -> scripts/ -> pipeline/
 # qcar_testbed_integration root: pipeline/ -> qcar_dataset/ -> data/ -> repo root.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(PIPELINE_ROOT)))
+sys.path.insert(0, REPO_ROOT)
+import machine_paths  # noqa: E402
 DEFAULT_CONF = os.path.join(HERE, "conf.json")
 
 
@@ -155,9 +160,9 @@ def _load_conf(path):
 
 
 def _path_from_conf(key):
-    """conf.json path value; relative ones are resolved against REPO_ROOT."""
-    v = _conf.get(key)
-    return v if not v or os.path.isabs(v) else os.path.join(REPO_ROOT, v)
+    """conf.json path value: relative -> REPO_ROOT, '${key}/...' -> this machine's
+    machine_paths.json (see machine_paths.py)."""
+    return machine_paths.resolve(_conf.get(key), REPO_ROOT)
 
 
 # --- CLI flags -----------------------------------------------------------
@@ -188,8 +193,11 @@ _parser.add_argument(
     "--vis-masks-dir", default=_path_from_conf("vis_masks_dir"),
     help="Folder with each car's <car>_bev_visibility.png (default: conf.json's vis_masks_dir)")
 _parser.add_argument(
-    "--walls-json", default=_path_from_conf("walls_json"),
-    help="Real wall-segment geometry used for occlusion (default: conf.json's walls_json)")
+    "--scene-json", default=_path_from_conf("scene_json"),
+    help="Track facts: walls (occlusion) and parked cars (default: conf.json's scene_json)")
+_parser.add_argument(
+    "--vehicles-json", default=_path_from_conf("vehicles_json"),
+    help="Per-car identity and camera extrinsics (default: conf.json's vehicles_json)")
 _parser.add_argument(
     "--val-indices", default=_conf.get("val_indices"),
     help="Comma-separated trajectory indices held out for validate; discovered "
@@ -197,8 +205,7 @@ _parser.add_argument(
          "(default: conf.json's val_indices)")
 _parser.add_argument(
     "--agents", default=_conf.get("agents"),
-    help="Comma-separated agent ids (from CAR_REGISTRY) to include this run. Every id "
-         "listed must have both a CAR_REGISTRY entry and an EXTRINSIC_PARAMS entry "
+    help="Comma-separated agent ids (vehicles.json's vehicles) to include this run "
          "(default: conf.json's agents)")
 _parser.add_argument(
     "--max-trajectories", type=int, default=_conf.get("max_trajectories"),
@@ -217,7 +224,7 @@ if __name__ == "__main__" and any(a in ("-h", "--help") for a in sys.argv[1:]):
     raise SystemExit(0)
 _args, _ = _parser.parse_known_args()
 _missing = [k for k in ("calib_root", "onboard_root", "out_dir", "vis_masks_dir",
-                        "walls_json", "val_indices", "agents")
+                        "scene_json", "vehicles_json", "val_indices", "agents")
             if getattr(_args, k) is None]
 if _missing:
     raise SystemExit("No value for %s: set it in %s or pass the flag."
@@ -229,83 +236,32 @@ DST = _args.out_dir
 VIS_MASKS = _args.vis_masks_dir
 
 SCALE = 10.0
-QCAR_L, QCAR_W, QCAR_H = 0.425, 0.192, 0.190
 PAIR_TOLERANCE_SEC = _conf["pair_tolerance_sec"]  # project's established wall-time pairing tolerance
 
-def reversal_center_offset(a, b):
-    """Body-frame (forward, lateral) metres from the marker plate to the
-    midpoint of two Vicon readings a/b = (x, y, yaw_rad) taken with the
-    vehicle turned 180 degrees inside the same taped wheel marks. Averaged
-    over both readings (they agree to ~3 mm when the test is done right)."""
-    cx, cy = (a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0
-    fwd = lat = 0.0
-    for x, y, yaw in (a, b):
-        c, s = math.cos(yaw), math.sin(yaw)
-        fwd += (c * (cx - x) + s * (cy - y)) / 2.0
-        lat += (-s * (cx - x) + c * (cy - y)) / 2.0
-    return fwd, lat
+# --- Physical facts (calibration/vehicles.json, footprints, scene.json) -----
+sys.path.insert(0, os.path.join(REPO_ROOT, "calibration"))
+import vehicle_calibration  # noqa: E402
 
+_VEH_DOC, CAR_REGISTRY = vehicle_calibration.load_vehicles(_args.vehicles_json)
+_FOOTPRINTS = vehicle_calibration.load_footprints(_VEH_DOC)
+WALL_LIST, STATIC_TARGETS, _PARKED = vehicle_calibration.load_scene(_args.scene_json)
 
-def _resolve_marker_offsets(spec):
-    """conf.json's marker_offsets -> {vehicle_type: (fwd_m, lat_m)}. A type
-    is measured directly (fwd_m/lat_m) or by a reversal test relative to an
-    already-resolved type (see conf.json's _comment for why relative)."""
-    out = {}
-    pending = {k: v for k, v in spec.items() if not k.startswith("_")}
-    while pending:
-        progressed = False
-        for name, v in list(pending.items()):
-            if "fwd_m" in v:
-                out[name] = (v["fwd_m"], v["lat_m"])
-            elif v.get("relative_to") in out:
-                ref = out[v["relative_to"]]
-                veh = reversal_center_offset(v["reversal"]["A"], v["reversal"]["B"])
-                rr = reversal_center_offset(v["reference_reversal"]["A"], v["reference_reversal"]["B"])
-                out[name] = (ref[0] + veh[0] - rr[0], ref[1] + veh[1] - rr[1])
-            else:
-                continue
-            del pending[name]
-            progressed = True
-        if not progressed:
-            raise SystemExit("marker_offsets: unresolvable entries %s" % sorted(pending))
-    return out
-
-
-# Vicon-origin -> exterior-box-centre offset per offset name (conf.json's
-# marker_offsets). Each agent uses its own measured entry (vehicles.<id>.
-# marker_offset); targets name theirs in their 'vehicle' field.
-MARKER_OFFSETS = _resolve_marker_offsets(_conf["marker_offsets"])
+# Vicon-origin -> exterior-box-centre offset (fwd, lat) and box (length, width)
+# per vehicle name: agents and named targets from calibration/physical_vehicle_footprints.json,
+# parked cars from scene.json. apply_marker_offset() / the yaml writer key on these names.
+MARKER_OFFSETS = {name: (v[0], v[1]) for name, v in list(_FOOTPRINTS.items()) + list(_PARKED.items())}
+for _name, _t in vehicle_calibration.entries(_VEH_DOC["targets"]).items():
+    MARKER_OFFSETS[_name] = MARKER_OFFSETS[_t["footprint"]]
+AGENT_MARKER_OFFSET = {aid: v["footprint"] for aid, v in CAR_REGISTRY.items()}
+QCAR_L, QCAR_W, QCAR_H = vehicle_calibration.common_box_size(_VEH_DOC, _FOOTPRINTS, _PARKED)
 OFFSET_FWD_M, OFFSET_LAT_M = MARKER_OFFSETS["qcar"]  # legacy names, read by importers
 
-# --- Physical car registry (conf.json's vehicles) ---------------------------
-# One entry per REAL QCar this project has actually calibrated. The agent id
-# assignment is declared explicitly in conf.json, NOT auto-derived by sorting
-# IPs on disk -- see the module docstring for why that matters (wall geometry
-# and other physical facts are tied to a specific physical car's identity).
-# To add a 3rd+ car: add a real vehicles entry (real calibration_Matries/<name>/
-# must exist) pointing at a real marker_offsets and camera_extrinsics entry --
-# never fabricate either.
-CAR_REGISTRY = {aid: v for aid, v in _conf["vehicles"].items() if not aid.startswith("_")}
-AGENT_MARKER_OFFSET = {aid: v["marker_offset"] for aid, v in CAR_REGISTRY.items()}
-for _aid, _name in AGENT_MARKER_OFFSET.items():
-    if _name not in MARKER_OFFSETS:
-        raise SystemExit("vehicles.%s.marker_offset %r is not in marker_offsets" % (_aid, _name))
-
-# Camera-to-vehicle rotation + body-frame mount translation (conf.json's
-# camera_extrinsics). qcar/patches/patch_real_extrinsic.py reads the same
-# entries, so this visibility precheck agrees with what the model sees.
-_EXTR = _conf["camera_extrinsics"]
-
-
-def _extrinsic(name):
-    e = _EXTR[name]
-    return np.array(e["R_cb"], dtype=np.float64), np.array(e["t_cb_m"], dtype=np.float64)
-
-
-FRONT_MOUNT_XYZ = tuple(_EXTR[_EXTR["cam_cords_mount"]]["t_cb_m"])  # cam_cords (rotation handled by the patch)
-R_CB_NOMINAL = _extrinsic("manual_nominal")[0]             # legacy names, read by importers
-R_CB_QCAR52775, T_CB_QCAR52775 = _extrinsic("qcar52775_refined")
-EXTRINSIC_PARAMS = {aid: _extrinsic(v["camera_extrinsic"]) for aid, v in CAR_REGISTRY.items()}
+# Camera-to-vehicle rotation + body-frame mount translation; patch_real_extrinsic.py
+# reads the same vehicles.json, so this visibility precheck agrees with the model.
+FRONT_MOUNT_XYZ = vehicle_calibration.cam_cords_mount(_VEH_DOC)  # cam_cords (rotation handled by the patch)
+R_CB_NOMINAL = vehicle_calibration.camera_extrinsic(_VEH_DOC, "manual_nominal")[0]  # legacy names, read by importers
+R_CB_QCAR52775, T_CB_QCAR52775 = vehicle_calibration.camera_extrinsic(_VEH_DOC, "qcar52775_refined")
+EXTRINSIC_PARAMS = {aid: (v["R_cb"], v["t_cb"]) for aid, v in CAR_REGISTRY.items()}
 
 IMG_W, IMG_H = 640, 480
 
@@ -339,8 +295,8 @@ def _load_cam_params():
             "%s_front_intrinsics_verified.npz" % reg["calib_name"]))
         params[aid] = {
             "K": calib["front_K"].astype(np.float64), "D": calib["front_D"].astype(np.float64),
-            "car": reg["car_label"],
-            "root": os.path.join(ONBOARD_ROOT, reg["ip"], "dataset"),
+            "car": reg["name"],
+            "root": os.path.join(ONBOARD_ROOT, reg["name"], "dataset"),
             "vis_mask": os.path.join(VIS_MASKS, reg["vis_mask_file"]),
         }
     return params
@@ -386,23 +342,22 @@ def common_indices():
 # Vicon reading, provided by the user for the robustness-capture plan and
 # confirmed 2026-09-14 to have been physically present during these same 9
 # trajectories -- not just planned for a future capture). Read from
-# conf.json's static_targets (user-decided 2026-09-23: real positions are
-# DATA, not code -- editing conf.json to add/move a static target should
+# scene.json's static_targets (user-decided 2026-09-23: real positions are
+# DATA, not code -- editing scene.json to add/move a static target should
 # never require touching this file).
-STATIC_TARGETS = _conf["static_targets"]
 # All vehicles in the scene this run: every active dynamic agent + every
 # static target. A plain tuple (not a function) so importers can keep
 # reading it as a module attribute, same as before this revision.
 SCENE_VEHICLE_IDS = tuple(AGENT_IDS) + tuple(STATIC_TARGETS.keys())
 
-# Real wall-segment geometry (shared/walls.json, user-confirmed 2026-09-22,
+# Real wall-segment geometry (shared/scene.json, user-confirmed 2026-09-22,
 # measured from media/Walls_Layout+Scenario1.jpeg) -- a PER-FRAME occlusion
 # check (does the line of sight from the agent's real position to the
 # target's real position cross a real wall). This is now the ONLY wall
 # check this script's dataset-building logic uses (see the module docstring
 # for why, and its known incompleteness). Loaded once; add more walls to
 # that JSON file, no code change needed here.
-WALLS = wall_geometry.load_walls(_args.walls_json)
+WALLS = wall_geometry.load_walls(_args.scene_json)
 
 
 def world_box_corners(cx, cy, cz, yaw_deg, l, w, h):
@@ -504,10 +459,10 @@ def build_scene_n(frames_by_agent, targets=None):
                 continue
             # Real per-frame wall occlusion: line of sight from the agent's
             # own real (raw) position to the target's real (raw) position,
-            # tested against every real wall segment in shared/walls.json.
+            # tested against every real wall segment in shared/scene.json.
             # This is the ONLY wall check -- user-decided 2026-09-22: always
             # go by real geometry, never a fixed hand-confirmed pair fact,
-            # even though walls.json is known-incomplete (see the
+            # even though scene.json's walls are known-incomplete (see the
             # 2026-09-22 19 ANALISIS research note).
             if wall_geometry.blocked_by_wall(
                     (agent_pose[aid]["x"], agent_pose[aid]["y"]), (raw[vid]["x"], raw[vid]["y"]), WALLS):
@@ -631,7 +586,7 @@ def session_runs(session):
 
 
 def _session_root(session):
-    root = session.get("root") or ONBOARD_ROOT
+    root = machine_paths.resolve(session["root"], REPO_ROOT) if session.get("root") else ONBOARD_ROOT
     return root if os.path.isabs(root) or re.match(r"^[A-Za-z]:[\\/]", root) else os.path.join(REPO_ROOT, root)
 
 

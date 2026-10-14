@@ -78,10 +78,10 @@ with torch.inference_mode():
             ax.arrow(x, y, 0.15 * math.cos(yaw), 0.15 * math.sin(yaw),
                       head_width=0.06, color=color)
 
-        draw_car(ego["x"], ego["y"], ego["yaw_rad"], "blue", "EGO .198")
-        draw_car(peer["x"], peer["y"], peer["yaw_rad"], "green", "PEER .158 (real)")
+        draw_car(ego["x"], ego["y"], ego["yaw_rad"], "blue", "EGO qcar-52775")
+        draw_car(peer["x"], peer["y"], peer["yaw_rad"], "green", "PEER qcar-52776 (real)")
         ax.plot(t3["x"], t3["y"], "s", color="magenta", markersize=10)
-        ax.text(t3["x"] + 0.05, t3["y"] + 0.05, "Node9 (real, pared p/.198)", color="magenta", fontsize=9)
+        ax.text(t3["x"] + 0.05, t3["y"] + 0.05, "Node9 (real, pared p/qcar-52775)", color="magenta", fontsize=9)
         ax.plot(t4["x"], t4["y"], "s", color="orange", markersize=10)
         ax.text(t4["x"] + 0.05, t4["y"] + 0.05, "Node11 (real)", color="orange", fontsize=9)
 

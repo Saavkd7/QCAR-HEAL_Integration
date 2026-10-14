@@ -1,9 +1,11 @@
 name: HeterBaseline_opv2v_camera_attfuse_qcar_coop
-# Fill this in by hand once the pretrain run (camera_attfuse_pretrain.yaml)
-# picks a final best checkpoint, e.g.
-#   opencood/logs/HeterBaseline_opv2v_camera_attfuse_qcar_pretrain_<run>/net_epoch_bestval_at1.pth
-_qcar_pretrained_checkpoint: opencood/logs/HeterBaseline_opv2v_camera_attfuse_qcar_pretrain_<run>/net_epoch_bestval_at1.pth
-_qcar_stage: "cooperation training -- two real agents (qcar-52775 x qcar-52776), starting from the pretrained encoder"
+# THE QCar base config (qcar/zoo.json bases.camera): data paths, 1 front camera,
+# anchors, loss, optimizer and schedule shared by every zoo method. `zoo.py configs`
+# keeps all of this and replaces only the `model` section (and the init checkpoint)
+# with each method's OPV2V source, writing qcar/configs/zoo/<method>.yaml.
+# Used directly (qcar/train.py's default), it trains attfuse from HEAL's OPV2V checkpoint.
+_qcar_pretrained_checkpoint: checkpoints/qcar/HeterBaseline_opv2v_camera_attfuse_2023_08_08_16_50_01/net_epoch_bestval_at17.pth
+_qcar_stage: "cooperation training -- two real agents (qcar-52775 x qcar-52776), from HEAL's OPV2V (CARLA) attfuse checkpoint"
 _qcar_freeze_encoder_blocks: 8  # same freeze as pretrain; CoopFront is small (819 train pairs), keep conservative
 root_dir: qcar_dataset/pipeline/datasets/CoopFront/train
 validate_dir: qcar_dataset/pipeline/datasets/CoopFront/validate

@@ -15,7 +15,7 @@ Every default is in qcar/conf.json (train_* keys + the shared module keys).
 Model, loss and fusion are chosen by the experiment yaml and can be swapped
 without code changes -- see qcar/README.md:
     python qcar/train.py                                   # conf.json defaults
-    python qcar/train.py -y qcar/configs/camera_attfuse_pretrain.yaml
+    python qcar/train.py -y qcar/configs/zoo/pyramid.yaml
     python qcar/train.py --set model.args.fusion_method=max
     python qcar/train.py --plugins qcar.patches.patch_1cam_loader
 

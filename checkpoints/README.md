@@ -38,11 +38,8 @@ checkpoints/
 `HeterBaseline_opv2v_camera_attfuse_2023_08_08_16_50_01` (simplest attention
 fusion baseline, camera-only, trained on simulated OPV2V) — its
 `encoder_m2.*` weights are transplanted as the encoder-initialization source
-for `camera_attfuse_pretrain.yaml` / `camera_attfuse_onlyfront.yaml` /
-`camera_pyramid_onlyfront.yaml` / `camera_attfuse_qcar.yaml`'s
-`_qcar_pretrained_checkpoint` / `_qcar_encoder_initialization_checkpoint`
-fields (paths updated 2026-09-18 to `checkpoints/qcar/...` — see
-`qcar/configs/*.yaml`).
+for the zoo (`qcar/zoo.json` `encoder_init_checkpoint`, and the full start of
+`att` and of the base `qcar/configs/camera_attfuse_coop.yaml`).
 
 ### `heal_reference/` — general HEAL framework material, not QCar's problem
 

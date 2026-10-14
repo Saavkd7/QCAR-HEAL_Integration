@@ -91,15 +91,35 @@ N-agent generalization (new in this revision):
     values (not functions) for backward compatibility with importers that
     read them as attributes.
 
+Capture sessions and per-vehicle centres (2026-10-06):
+  - conf.json's `sessions` lists every capture that goes into the dataset,
+    each with its raw layout ("converted": ExperimentNo1's
+    <ip>/dataset/converted_*_<NN>/; "frames": the October captures'
+    <ip>/<run>/frames/), its per-agent folder (the cars' IPs changed between
+    sessions; agent "1" is always qcar-52775, "2" always qcar-52776), how runs
+    pair across cars (trailing index or identical name), its scenario name
+    template, its validation runs, and its targets: the parked QCars
+    (static_targets) and/or a dynamic target whose Vicon pose is broadcast in
+    every frame (dynamic_target, e.g. the third car, id 3, pose taken from the
+    reference agent's frame).
+  - The marker-plate -> centre offset is per vehicle TYPE (conf.json's
+    marker_offsets): every QCar shares the measured QCar offset; the third
+    car has its own, from a 180-degree reversal test (reversal_center_offset).
+    The yaml's qcar_provenance.marker_offset_applied_m records, per listed
+    vehicle id, the offset actually used.
+  - Output keeps the established layout; scenario names come from the
+    session template (qcar_coop_<NN> for ExperimentNo1).
+
 Usage:
     python build_coop_train_val_dataset.py      # every default comes from conf.json
 
-Every default (paths, agents, val split, pairing tolerance, static targets)
-lives in conf.json next to this script; edit it there. Flags are optional
-one-run overrides for anyone who doesn't want to touch the file:
+Every default (paths, agents, sessions, val split, pairing tolerance, static
+targets, marker offsets) lives in conf.json next to this script; edit it
+there. Flags are optional one-run overrides for anyone who doesn't want to
+touch the file:
     --conf <path>  --calib-root <dir>  --onboard-root <dir>  --out-dir <dir>
     --vis-masks-dir <dir>  --walls-json <file>  --val-indices 07,08
-    --agents 1,2  --max-trajectories N
+    --agents 1,2  --max-trajectories N  --sessions ExperimentNo1,2026-10-05
 """
 import argparse
 import json
@@ -185,6 +205,9 @@ _parser.add_argument(
     help="Only build the first N discovered trajectory indices (sorted) -- for a fast "
          "smoke-test build from 100%% real data/code. null = every discovered "
          "trajectory (default: conf.json's max_trajectories)")
+_parser.add_argument(
+    "--sessions", default=None,
+    help="Comma-separated conf.json session names to build (default: every session)")
 # add_help=False means -h/--help would otherwise be silently ignored (and
 # this DESTRUCTIVE script -- main() does shutil.rmtree(DST) then rebuilds --
 # would run for real). Handle it manually, only when run as a script (never
@@ -209,48 +232,80 @@ SCALE = 10.0
 QCAR_L, QCAR_W, QCAR_H = 0.425, 0.192, 0.190
 PAIR_TOLERANCE_SEC = _conf["pair_tolerance_sec"]  # project's established wall-time pairing tolerance
 
-# marker-to-physical-center offset, verified 2026-09-14 (measured on the
-# vehicle + independently recovered from a 19-point image/Vicon fit).
-# Applies to every REAL QCar the same way (same marker-plate mounting
-# convention) -- not per-car, unlike intrinsics/extrinsics.
-OFFSET_FWD_M = 0.0343
-OFFSET_LAT_M = -0.0209
+def reversal_center_offset(a, b):
+    """Body-frame (forward, lateral) metres from the marker plate to the
+    midpoint of two Vicon readings a/b = (x, y, yaw_rad) taken with the
+    vehicle turned 180 degrees inside the same taped wheel marks. Averaged
+    over both readings (they agree to ~3 mm when the test is done right)."""
+    cx, cy = (a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0
+    fwd = lat = 0.0
+    for x, y, yaw in (a, b):
+        c, s = math.cos(yaw), math.sin(yaw)
+        fwd += (c * (cx - x) + s * (cy - y)) / 2.0
+        lat += (-s * (cx - x) + c * (cy - y)) / 2.0
+    return fwd, lat
 
-FRONT_MOUNT_XYZ = (0.1930, 0.0, 0.0953)  # manual value, used for cam_cords (rotation handled by the patch)
 
-# --- Physical car registry ------------------------------------------------
+def _resolve_marker_offsets(spec):
+    """conf.json's marker_offsets -> {vehicle_type: (fwd_m, lat_m)}. A type
+    is measured directly (fwd_m/lat_m) or by a reversal test relative to an
+    already-resolved type (see conf.json's _comment for why relative)."""
+    out = {}
+    pending = {k: v for k, v in spec.items() if not k.startswith("_")}
+    while pending:
+        progressed = False
+        for name, v in list(pending.items()):
+            if "fwd_m" in v:
+                out[name] = (v["fwd_m"], v["lat_m"])
+            elif v.get("relative_to") in out:
+                ref = out[v["relative_to"]]
+                veh = reversal_center_offset(v["reversal"]["A"], v["reversal"]["B"])
+                rr = reversal_center_offset(v["reference_reversal"]["A"], v["reference_reversal"]["B"])
+                out[name] = (ref[0] + veh[0] - rr[0], ref[1] + veh[1] - rr[1])
+            else:
+                continue
+            del pending[name]
+            progressed = True
+        if not progressed:
+            raise SystemExit("marker_offsets: unresolvable entries %s" % sorted(pending))
+    return out
+
+
+# Vicon-origin -> exterior-box-centre offset per offset name (conf.json's
+# marker_offsets). Each agent uses its own measured entry (vehicles.<id>.
+# marker_offset); targets name theirs in their 'vehicle' field.
+MARKER_OFFSETS = _resolve_marker_offsets(_conf["marker_offsets"])
+OFFSET_FWD_M, OFFSET_LAT_M = MARKER_OFFSETS["qcar"]  # legacy names, read by importers
+
+# --- Physical car registry (conf.json's vehicles) ---------------------------
 # One entry per REAL QCar this project has actually calibrated. The agent id
-# assignment is declared explicitly here, NOT auto-derived by sorting IPs on
-# disk -- see the module docstring for why that matters (wall geometry and
-# other physical facts are tied to a specific physical car's identity). To add a 3rd+ car: add a
-# real entry here (real calibration_Matries/<name>/ must exist), AND a real
-# entry in EXTRINSIC_PARAMS below (measured, or at minimum the manual-nominal
-# rotation) -- never fabricate either.
-CAR_REGISTRY = {
-    "1": {"ip": "192.168.1.198", "calib_name": "qcar52775",
-          "car_label": "qcar-52775 (192.168.1.198)",
-          "vis_mask_file": "qcar52775_bev_visibility.png"},
-    "2": {"ip": "192.168.1.158", "calib_name": "qcar52776",
-          "car_label": "qcar-52776 (192.168.1.158)",
-          "vis_mask_file": "qcar52776_bev_visibility.png"},
-}
+# assignment is declared explicitly in conf.json, NOT auto-derived by sorting
+# IPs on disk -- see the module docstring for why that matters (wall geometry
+# and other physical facts are tied to a specific physical car's identity).
+# To add a 3rd+ car: add a real vehicles entry (real calibration_Matries/<name>/
+# must exist) pointing at a real marker_offsets and camera_extrinsics entry --
+# never fabricate either.
+CAR_REGISTRY = {aid: v for aid, v in _conf["vehicles"].items() if not aid.startswith("_")}
+AGENT_MARKER_OFFSET = {aid: v["marker_offset"] for aid, v in CAR_REGISTRY.items()}
+for _aid, _name in AGENT_MARKER_OFFSET.items():
+    if _name not in MARKER_OFFSETS:
+        raise SystemExit("vehicles.%s.marker_offset %r is not in marker_offsets" % (_aid, _name))
 
-# Camera-to-vehicle rotation + body-frame mount translation, MUST match
-# qcar/patches/patch_real_extrinsic.py's CAMERA_PARAMS exactly --
-# this is the same geometry the trained model's get_ext_int() uses, so the
-# visibility precheck here has to agree with what the model actually sees.
-# Every agent id used this run (--agents) MUST have a real entry here.
-R_CB_NOMINAL = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], dtype=np.float64)
-R_CB_QCAR52775 = np.array([
-    [-0.00168635, -0.07682121, 0.99704346],
-    [-0.99920993, -0.03946071, -0.00473042],
-    [0.03970744, -0.9962637, -0.07669397],
-], dtype=np.float64)
-T_CB_QCAR52775 = np.array([0.21306336, -0.00169975, 0.11930449], dtype=np.float64)
-EXTRINSIC_PARAMS = {
-    "1": (R_CB_QCAR52775, T_CB_QCAR52775),          # refined, 19-point PnP fit
-    "2": (R_CB_NOMINAL, np.array(FRONT_MOUNT_XYZ)),  # manual-nominal, not yet refined
-}
+# Camera-to-vehicle rotation + body-frame mount translation (conf.json's
+# camera_extrinsics). qcar/patches/patch_real_extrinsic.py reads the same
+# entries, so this visibility precheck agrees with what the model sees.
+_EXTR = _conf["camera_extrinsics"]
+
+
+def _extrinsic(name):
+    e = _EXTR[name]
+    return np.array(e["R_cb"], dtype=np.float64), np.array(e["t_cb_m"], dtype=np.float64)
+
+
+FRONT_MOUNT_XYZ = tuple(_EXTR[_EXTR["cam_cords_mount"]]["t_cb_m"])  # cam_cords (rotation handled by the patch)
+R_CB_NOMINAL = _extrinsic("manual_nominal")[0]             # legacy names, read by importers
+R_CB_QCAR52775, T_CB_QCAR52775 = _extrinsic("qcar52775_refined")
+EXTRINSIC_PARAMS = {aid: _extrinsic(v["camera_extrinsic"]) for aid, v in CAR_REGISTRY.items()}
 
 IMG_W, IMG_H = 640, 480
 
@@ -397,35 +452,49 @@ def truly_visible_to_agent(target_x, target_y, target_z, target_yaw_deg, agent_p
     return bool(0 <= center[0] < IMG_W and 0 <= center[1] < IMG_H)
 
 
-def apply_marker_offset(pose):
+def apply_marker_offset(pose, vehicle="qcar"):
     """Vicon reports the reflective-marker-plate position, not the
-    physical center; same body-frame offset applies to every vehicle,
-    dynamic or static, rotated by that vehicle's own yaw."""
+    physical center; the body-frame offset of that vehicle TYPE
+    (MARKER_OFFSETS) is rotated by the vehicle's own yaw."""
+    fwd, lat = MARKER_OFFSETS[vehicle]
     c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
-    dx = c * OFFSET_FWD_M - s * OFFSET_LAT_M
-    dy = s * OFFSET_FWD_M + c * OFFSET_LAT_M
+    dx = c * fwd - s * lat
+    dy = s * fwd + c * lat
     return {"x": pose["x"] + dx, "y": pose["y"] + dy, "z": pose["z"],
             "yaw_rad": pose["yaw_rad"]}
 
 
-def build_scene_n(frames_by_agent):
+def static_targets_meta():
+    """STATIC_TARGETS as the per-scene target description build_scene_n()
+    and the writers take: {id: {pose, static, node, vehicle}}."""
+    return {vid: {"pose": {k: t[k] for k in ("x", "y", "z", "yaw_rad")}, "static": True,
+                  "node": t["node"], "vehicle": t["vehicle"]}
+            for vid, t in STATIC_TARGETS.items()}
+
+
+def build_scene_n(frames_by_agent, targets=None):
     """Ground-truth registry for one paired frame group across N agents:
     real (uncorrected Vicon) pose for every vehicle in the scene, the
     marker-corrected physical-center pose, and per-agent visibility of
     each vehicle to each active agent's real camera.
 
     frames_by_agent: {agent_id: frame_dict} for every id in AGENT_IDS.
+    targets: {id: {pose, static, node, vehicle}} for every non-agent vehicle
+    in this frame; default = the session's STATIC_TARGETS. Agents are QCars.
     """
+    targets = static_targets_meta() if targets is None else targets
     raw = {aid: {"x": frames_by_agent[aid]["x"], "y": frames_by_agent[aid]["y"],
                  "z": frames_by_agent[aid]["z"], "yaw_rad": frames_by_agent[aid]["yaw_rad"]}
            for aid in AGENT_IDS}
-    raw.update(STATIC_TARGETS)
+    raw.update({vid: t["pose"] for vid, t in targets.items()})
+    vehicle_type = {vid: targets[vid]["vehicle"] if vid in targets else AGENT_MARKER_OFFSET[vid]
+                    for vid in raw}
 
-    corrected = {vid: apply_marker_offset(raw[vid]) for vid in SCENE_VEHICLE_IDS}
+    corrected = {vid: apply_marker_offset(raw[vid], vehicle_type[vid]) for vid in raw}
     agent_pose = {aid: raw[aid] for aid in AGENT_IDS}  # camera geometry keys off the RAW (un-offset) ego pose
 
     visibility = {}
-    for vid in SCENE_VEHICLE_IDS:
+    for vid in raw:
         tgt = corrected[vid]
         yaw_deg = math.degrees(tgt["yaw_rad"])
         by_agent = {}
@@ -468,32 +537,102 @@ def undistort(src_png, dst_png, K, D):
     cv2.imwrite(dst_png, out)
 
 
+def _read_pose(path):
+    """A Vicon pose json -> {x, y, z, yaw_rad}, or None if missing, flagged
+    invalid, or non-finite."""
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        p = json.load(f)
+    if p.get("valid", 0.0) != 1.0:
+        return None
+    pose = {"x": p["x"], "y": p["y"], "z": p["z"], "yaw_rad": p["yaw"]}
+    return pose if all(math.isfinite(v) for v in pose.values()) else None
+
+
+def load_run_frames(run_dir, target_file=None):
+    """Usable frames of one agent's run: <run_dir>/<digits>/ with
+    timestamp.json, a valid ego_vicon_pose.json and front.png -- plus, when
+    the session tracks a dynamic target, a valid <target_file> (the target's
+    Vicon pose as broadcast in that same frame). Sorted by (time, frame id)."""
+    frames = []
+    for fid in sorted(os.listdir(run_dir)):
+        fdir = os.path.join(run_dir, fid)
+        if not os.path.isdir(fdir) or not fid.isdigit():
+            continue
+        ts_path = os.path.join(fdir, "timestamp.json")
+        if not (os.path.exists(ts_path) and os.path.exists(os.path.join(fdir, "front.png"))):
+            continue
+        pose = _read_pose(os.path.join(fdir, "ego_vicon_pose.json"))
+        target = _read_pose(os.path.join(fdir, target_file)) if target_file else None
+        if pose is None or (target_file and target is None):
+            continue
+        with open(ts_path) as f:
+            t = float(json.load(f)["reference_time_sec"])
+        if not math.isfinite(t):
+            continue
+        frames.append(dict(fid=fid, dir=fdir, t=t, target=target, **pose))
+    frames.sort(key=lambda r: (r["t"], r["fid"]))
+    return frames
+
+
 def load_frames(cav_id, idx):
+    """Frames of trajectory <idx> of agent <cav_id> in the onboard_root
+    (ExperimentNo1-layout) session -- the entry point importers use."""
     p = CAM_PARAMS[cav_id]
     folder_name = discover_trajectories(cav_id).get(idx)
     if folder_name is None:
         raise FileNotFoundError(
             "No converted_*_%s folder found for cav %s under %s" % (idx, cav_id, p["root"]))
-    scen_dir = os.path.join(p["root"], folder_name)
-    frames = []
-    for fid in sorted(os.listdir(scen_dir)):
-        fdir = os.path.join(scen_dir, fid)
-        if not os.path.isdir(fdir) or not fid.isdigit():
-            continue
-        ts_path = os.path.join(fdir, "timestamp.json")
-        pose_path = os.path.join(fdir, "ego_vicon_pose.json")
-        if not (os.path.exists(ts_path) and os.path.exists(pose_path)):
-            continue
-        ts = json.load(open(ts_path))
-        pose = json.load(open(pose_path))
-        if not pose.get("valid", 0.0) == 1.0:
-            continue
-        frames.append({
-            "fid": fid, "dir": fdir,
-            "t": ts["reference_time_sec"],
-            "x": pose["x"], "y": pose["y"], "z": pose["z"], "yaw_rad": pose["yaw"],
-        })
-    return frames
+    return load_run_frames(os.path.join(p["root"], folder_name))
+
+
+_TRAILING_INDEX_RE = re.compile(r"^(?:converted_)?.+_(\d+)$")
+
+
+def session_runs(session):
+    """Runs of one conf.json session present on EVERY active agent, as
+    [(key, {agent_id: run_frames_dir})]. layout "converted":
+    <root>/<agent_dir>/dataset/converted_<route>_<NN>/<frame>/;
+    layout "frames": <root>/<agent_dir>/<run>/frames/<frame>/. Runs are
+    paired across agents by trailing index ("index", route names may differ
+    per car) or by identical folder name ("name")."""
+    root = _session_root(session)
+    by_agent = {}
+    for aid in AGENT_IDS:
+        adir = os.path.join(root, session["agent_dirs"][aid])
+        if session["layout"] == "converted":
+            adir = os.path.join(adir, "dataset")
+        runs = {}
+        for name in sorted(os.listdir(adir)) if os.path.isdir(adir) else []:
+            run_dir = os.path.join(adir, name)
+            if session["layout"] == "frames":
+                run_dir = os.path.join(run_dir, "frames")
+            if not os.path.isdir(run_dir):
+                continue
+            if session["pair_runs_by"] == "index":
+                m = _TRAILING_INDEX_RE.match(name)
+                if not m:
+                    continue
+                key = m.group(1)
+            else:
+                key = name
+            if key in runs:
+                raise ValueError("session %s: two runs share key %r under %s" % (session["name"], key, adir))
+            runs[key] = run_dir
+        by_agent[aid] = runs
+    common = set.intersection(*(set(r) for r in by_agent.values()))
+    for aid, runs in by_agent.items():
+        for key in sorted(set(runs) - common):
+            print("session %s: run %r of agent %s has no counterpart on every agent -- skipped"
+                  % (session["name"], key, aid))
+    return [(key, {aid: by_agent[aid][key] for aid in AGENT_IDS})
+            for key in sorted(common, key=lambda s: (len(s), s))]
+
+
+def _session_root(session):
+    root = session.get("root") or ONBOARD_ROOT
+    return root if os.path.isabs(root) or re.match(r"^[A-Za-z]:[\\/]", root) else os.path.join(REPO_ROOT, root)
 
 
 def pair_frames_n(frames_by_agent):
@@ -529,7 +668,8 @@ def pair_frames_n(frames_by_agent):
     return groups
 
 
-def build_agent_yaml(me, me_id, raw, corrected, visibility, out_frame_dir, out_frame_num):
+def build_agent_yaml(me, me_id, raw, corrected, visibility, out_frame_dir, out_frame_num, targets=None):
+    targets = static_targets_meta() if targets is None else targets
     p_me = CAM_PARAMS[me_id]
     me_yaw_deg = math.degrees(me["yaw_rad"])
     pose = [me["x"] * SCALE, me["y"] * SCALE, 0.0, 0.0, me_yaw_deg, 0.0]
@@ -551,7 +691,7 @@ def build_agent_yaml(me, me_id, raw, corrected, visibility, out_frame_dir, out_f
     # Pre-filtering here would only ever DROP targets HEAL's own mask
     # would have kept.
     vehicles = {}
-    for vid in SCENE_VEHICLE_IDS:
+    for vid in visibility:
         if vid == me_id:
             continue  # self-box; HEAL's own object_id union then covers cross-visibility
         # Real per-frame wall occlusion, same wall_geometry check as
@@ -570,7 +710,7 @@ def build_agent_yaml(me, me_id, raw, corrected, visibility, out_frame_dir, out_f
             "center": [0.0, 0.0, QCAR_H / 2.0],
             "extent": [QCAR_L * SCALE / 2.0, QCAR_W * SCALE / 2.0, QCAR_H / 2.0],
             "angle": [0.0, tgt_yaw_deg, 0.0],
-            "static": vid in STATIC_TARGETS,
+            "static": bool(targets.get(vid, {}).get("static", False)),
         }
         # visible_to_agent<id> per ACTIVE agent -- for the --agents 1,2
         # default this produces exactly visible_to_agent1/visible_to_agent2,
@@ -586,7 +726,10 @@ def build_agent_yaml(me, me_id, raw, corrected, visibility, out_frame_dir, out_f
         "qcar_provenance": {
             "car": p_me["car"], "cav_id": me_id,
             "pose_source": "Vicon, REAL",
-            "marker_offset_applied_m": [OFFSET_FWD_M, OFFSET_LAT_M],
+            "marker_offset_applied_m": {
+                str(vid): list(MARKER_OFFSETS[targets[vid]["vehicle"] if vid in targets
+                                    else AGENT_MARKER_OFFSET[vid]])
+                for vid in visibility},
             "world_scale": "x10 horizontal only; z/height/K untouched",
             "visibility_rule": "unfiltered scene truth (god's eye); HEAL's own "
                                 "per-cav box_is_visible() + cross-cav union decides "
@@ -601,19 +744,20 @@ def build_agent_yaml(me, me_id, raw, corrected, visibility, out_frame_dir, out_f
         yaml.safe_dump(params, f, default_flow_style=None, sort_keys=False)
 
 
-def write_scene_gt(raw, corrected, visibility, out_dir, out_frame_num):
+def write_scene_gt(raw, corrected, visibility, out_dir, out_frame_num, targets=None):
     """Evaluation oracle: lists a vehicle ONLY when visible to >=1 active
     agent (wall-corrected), empty/absent otherwise -- so a detection is
     scored against "what should be detectable", never against omniscient
     world truth nobody's camera could have produced."""
+    targets = static_targets_meta() if targets is None else targets
     os.makedirs(out_dir, exist_ok=True)
     doc = {"vehicles": {}}
-    for vid in SCENE_VEHICLE_IDS:
+    for vid in visibility:
         if not visibility[vid]["any"]:
             continue  # nobody sees it this frame -- correctly absent, not just flagged False
         entry = {
-            "type": "static" if vid in STATIC_TARGETS else "dynamic",
-            "node": STATIC_TARGETS[vid]["node"] if vid in STATIC_TARGETS else None,
+            "type": "static" if targets.get(vid, {}).get("static") else "dynamic",
+            "node": targets[vid]["node"] if vid in targets else None,
             "vicon_raw": raw[vid],
             "physical_center": corrected[vid],
         }
@@ -623,73 +767,101 @@ def write_scene_gt(raw, corrected, visibility, out_dir, out_frame_num):
     json.dump(doc, open(os.path.join(out_dir, "%s.json" % out_frame_num), "w"), indent=2)
 
 
+def _scene_targets(session, frame_group):
+    """Non-agent vehicles of one paired frame: the session's static targets
+    and/or its dynamic target, whose pose is the one broadcast in the
+    reference (first) agent's frame -- the time reference of the pairing."""
+    targets = static_targets_meta() if session.get("static_targets") else {}
+    dyn = session.get("dynamic_target")
+    if dyn:
+        if dyn["id"] in targets or dyn["id"] in AGENT_IDS:
+            raise ValueError("session %s: dynamic target id %s collides" % (session["name"], dyn["id"]))
+        targets[dyn["id"]] = {"pose": frame_group[AGENT_IDS[0]]["target"], "static": False,
+                              "node": dyn.get("node"), "vehicle": dyn["vehicle"]}
+    return targets
+
+
 def main():
+    sessions = [s for s in _conf["sessions"] if not _args.sessions
+                or s["name"] in _args.sessions.split(",")]
+    if not sessions:
+        raise SystemExit("No session selected (conf.json sessions / --sessions)")
+    for s in sessions:
+        if set(s["agent_dirs"]) != set(AGENT_IDS):
+            raise SystemExit("session %s: agent_dirs %s != active agents %s"
+                             % (s["name"], sorted(s["agent_dirs"]), AGENT_IDS))
     if os.path.isdir(DST):
         shutil.rmtree(DST)
-
-    indices = common_indices()
-    if not indices:
-        print("No trajectory index found on ALL active agents (%s) under %s -- nothing "
-              "to build. Each active agent needs a converted_*_<NN> folder in its "
-              "dataset/ dir sharing the same trailing index." % (AGENT_IDS, ONBOARD_ROOT))
-        return
-    if _args.max_trajectories:
-        indices = indices[:_args.max_trajectories]
-        print("--max-trajectories %d: building only %s" % (_args.max_trajectories, indices))
     print("Active agents: %s" % (AGENT_IDS,))
-    print("Discovered %d shared trajectory index(es): %s" % (len(indices), ", ".join(indices)))
-    unknown_val = VAL_PAIRS - set(indices)
-    if unknown_val:
-        print("Warning: --val-indices names %s, not among the discovered indices %s"
-              % (sorted(unknown_val), indices))
+    print("Marker offsets (fwd, lat) m: %s" % {k: [round(v, 5) for v in o] for k, o in MARKER_OFFSETS.items()})
 
-    manifest = {"built": "2026-09-14", "agents": list(AGENT_IDS), "pairs": {}, "splits": {}}
-    for idx in indices:
-        split = "validate" if idx in VAL_PAIRS else "train"
-        frames_by_agent = {aid: load_frames(aid, idx) for aid in AGENT_IDS}
-        if any(not f for f in frames_by_agent.values()):
-            print("skip pair %s: missing frames (%s)"
-                  % (idx, {aid: len(f) for aid, f in frames_by_agent.items()}))
-            continue
-        groups = pair_frames_n(frames_by_agent)
-        scen_name = "qcar_coop_%s" % idx
-        n_written = 0
-        for k, frame_group in enumerate(groups):
-            out_num = "%06d" % k
-            raw, corrected, visibility = build_scene_n(frame_group)
-            for me_id in AGENT_IDS:
-                me_frame = frame_group[me_id]
-                out_dir = os.path.join(DST, split, scen_name, me_id)
-                os.makedirs(out_dir, exist_ok=True)
-                src_png = os.path.join(me_frame["dir"], "front.png")
-                dst_png = os.path.join(out_dir, "%s_camera0.png" % out_num)
-                p = CAM_PARAMS[me_id]
-                undistort(src_png, dst_png, p["K"], p["D"])
-                dst_vis = os.path.join(out_dir, "%s_bev_visibility.png" % out_num)
-                try:
-                    os.link(p["vis_mask"], dst_vis)
-                except OSError:
-                    shutil.copy2(p["vis_mask"], dst_vis)
-                build_agent_yaml(me_frame, me_id, raw, corrected, visibility, out_dir, out_num)
-            # scene_gt lives OUTSIDE train/validate entirely -- HEAL's own
-            # reinitialize() lists every subdirectory of a scenario folder
-            # and assumes each one is an integer cav id (crashed on
-            # 'scene_gt' when it was nested inside the scenario dir).
-            scene_dir = os.path.join(DST, "scene_gt", split, scen_name)
-            write_scene_gt(raw, corrected, visibility, scene_dir, out_num)
-            n_written += 1
-        manifest["pairs"][idx] = {
-            "split": split,
-            "frames": {aid: len(frames_by_agent[aid]) for aid in AGENT_IDS},
-            "paired": n_written,
-        }
-        manifest["splits"][split] = manifest["splits"].get(split, 0) + n_written
-        min_frames = min(len(f) for f in frames_by_agent.values())
-        print("pair %s (%s): %d/%d frames paired (tolerance %.0fms)" % (
-            idx, split, n_written, min_frames, PAIR_TOLERANCE_SEC * 1000))
+    manifest = {"agents": list(AGENT_IDS), "sessions": [s["name"] for s in sessions],
+                "marker_offsets_m": {k: list(v) for k, v in MARKER_OFFSETS.items()},
+                "pair_tolerance_sec": PAIR_TOLERANCE_SEC, "pairs": {}, "splits": {}}
+    for session in sessions:
+        runs = session_runs(session)
+        if _args.max_trajectories:
+            runs = runs[:_args.max_trajectories]
+        val = set(session["val"]) if session.get("val") is not None else VAL_PAIRS
+        unknown_val = val - {key for key, _ in runs}
+        if unknown_val:
+            print("Warning: session %s val names %s, not among its runs" % (session["name"], sorted(unknown_val)))
+        print("\nSession %s: %d run(s)" % (session["name"], len(runs)))
+        dyn = session.get("dynamic_target")
+        for key, run_dirs in runs:
+            _build_run(session, key, run_dirs, "validate" if key in val else "train",
+                       dyn["file"] if dyn else None, manifest)
 
-    json.dump(manifest, open(os.path.join(DST, "manifest.json"), "w"), indent=2)
+    with open(os.path.join(DST, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
     print("\n" + json.dumps(manifest["splits"], indent=2))
+
+
+def _build_run(session, key, run_dirs, split, target_file, manifest):
+    frames_by_agent = {aid: load_run_frames(run_dirs[aid], target_file) for aid in AGENT_IDS}
+    if any(not f for f in frames_by_agent.values()):
+        print("skip run %s: missing frames (%s)"
+              % (key, {aid: len(f) for aid, f in frames_by_agent.items()}))
+        return
+    groups = pair_frames_n(frames_by_agent)
+    scen_name = session["scenario"].format(index=key, name=re.sub(r"[^A-Za-z0-9]+", "_", key).strip("_"))
+    if scen_name in manifest["pairs"]:
+        raise ValueError("duplicate scenario name %s" % scen_name)
+    n_written = 0
+    for k, frame_group in enumerate(groups):
+        out_num = "%06d" % k
+        targets = _scene_targets(session, frame_group)
+        raw, corrected, visibility = build_scene_n(frame_group, targets)
+        for me_id in AGENT_IDS:
+            me_frame = frame_group[me_id]
+            out_dir = os.path.join(DST, split, scen_name, me_id)
+            os.makedirs(out_dir, exist_ok=True)
+            src_png = os.path.join(me_frame["dir"], "front.png")
+            dst_png = os.path.join(out_dir, "%s_camera0.png" % out_num)
+            p = CAM_PARAMS[me_id]
+            undistort(src_png, dst_png, p["K"], p["D"])
+            dst_vis = os.path.join(out_dir, "%s_bev_visibility.png" % out_num)
+            try:
+                os.link(p["vis_mask"], dst_vis)
+            except OSError:
+                shutil.copy2(p["vis_mask"], dst_vis)
+            build_agent_yaml(me_frame, me_id, raw, corrected, visibility, out_dir, out_num, targets)
+        # scene_gt lives OUTSIDE train/validate entirely -- HEAL's own
+        # reinitialize() lists every subdirectory of a scenario folder
+        # and assumes each one is an integer cav id (crashed on
+        # 'scene_gt' when it was nested inside the scenario dir).
+        scene_dir = os.path.join(DST, "scene_gt", split, scen_name)
+        write_scene_gt(raw, corrected, visibility, scene_dir, out_num, targets)
+        n_written += 1
+    manifest["pairs"][scen_name] = {
+        "session": session["name"], "run": key, "split": split,
+        "frames": {aid: len(frames_by_agent[aid]) for aid in AGENT_IDS},
+        "paired": n_written,
+    }
+    manifest["splits"][split] = manifest["splits"].get(split, 0) + n_written
+    min_frames = min(len(f) for f in frames_by_agent.values())
+    print("%s (%s): %d/%d frames paired (tolerance %.0fms)" % (
+        scen_name, split, n_written, min_frames, PAIR_TOLERANCE_SEC * 1000))
 
 
 if __name__ == "__main__":

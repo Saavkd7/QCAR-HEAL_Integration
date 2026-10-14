@@ -33,18 +33,17 @@ translation directly (bypassing x1_to_x2's general machinery, since the
 rotation part is already known to be Identity) and applies the REAL,
 data-refined rotation instead of FIX.
 
-WHAT'S HARD-CODED HERE
--------------------------
-R_CB / T_CB below are for qcar-52775's (192.168.1.198) front camera,
-refined 2026-09-14 from 19 image/Vicon click correspondences spanning
-0.46-2.9m and the full yaw range (median reprojection error 7.7px), plus a
-verified body-frame marker-to-physical-center offset (measured on the
-vehicle: +0.0343 m forward, -0.0209 m lateral; independently recovered
-from the same 19-point fit as +0.0334/-0.0178 -- the two agree). qcar-52776
-(192.168.1.158) has not been separately calibrated this way; it currently
-reuses the same manual-nominal rotation (not yet the refined one) via
-R_CB_NOMINAL, applied per-camera by qcar_id below. Extend CAMERA_PARAMS
-before trusting qcar-52776 to the same precision.
+WHERE THE NUMBERS COME FROM
+-----------------------------
+Nothing is hardcoded here. qcar/conf.json's vehicle_calibration_conf names
+the dataset builder's conf.json (the same file build_coop_train_val_dataset.py
+reads, so building and training cannot disagree): vehicles.<cav_id>.
+camera_extrinsic picks an entry of camera_extrinsics (R_cb, t_cb_m, source).
+Today: qcar-52775 uses its 19-point refined fit (2026-09-14, median
+reprojection error 7.7px); qcar-52776 uses the Quanser manual's nominal
+csi_front_to_body (p.9), not yet refined. A yaml without
+qcar_provenance.cav_id (PretrainFront) gets qcar/conf.json's
+extrinsic_unlabeled_cav_id.
 """
 import numpy as np
 
@@ -53,20 +52,24 @@ from opencood.data_utils.datasets.basedataset.opv2v_basedataset import (
 )
 from opencood.utils.transformation_utils import x_to_world
 
-R_CB_NOMINAL = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], dtype=np.float64)
+from qcar import config
 
-# qcar-52775 (192.168.1.198), refined 2026-09-14 (19-point fit, outliers dropped).
-R_CB_QCAR52775 = np.array([
-    [-0.00168635, -0.07682121, 0.99704346],
-    [-0.99920993, -0.03946071, -0.00473042],
-    [0.03970744, -0.9962637, -0.07669397],
-], dtype=np.float64)
-T_CB_QCAR52775 = np.array([0.21306336, -0.00169975, 0.11930449], dtype=np.float64)
+_qcar_conf = config.load_conf(config.conf_path_from_argv())
+_calib = config.load_conf(_qcar_conf.path_of("vehicle_calibration_conf"))
+_extr = _calib["camera_extrinsics"]
 
-CAMERA_PARAMS = {
-    "1": (R_CB_QCAR52775, T_CB_QCAR52775),   # qcar-52775, refined
-    "2": (R_CB_NOMINAL, np.array([0.1930, 0.0, 0.0953])),  # qcar-52776, nominal only
-}
+
+def _extrinsic(name):
+    e = _extr[name]
+    return np.array(e["R_cb"], dtype=np.float64), np.array(e["t_cb_m"], dtype=np.float64)
+
+
+# cav_id -> (R_cb, t_cb); also imported by visualize.py, rounds.py, realtime/viewer.py
+CAMERA_PARAMS = {aid: _extrinsic(v["camera_extrinsic"])
+                 for aid, v in _calib["vehicles"].items() if not aid.startswith("_")}
+UNLABELED_CAV_ID = str(_qcar_conf["extrinsic_unlabeled_cav_id"])
+R_CB_NOMINAL = _extrinsic("manual_nominal")[0]
+R_CB_QCAR52775, T_CB_QCAR52775 = _extrinsic("qcar52775_refined")
 
 
 def get_ext_int_qcar_real(self, params, camera_id):
@@ -88,10 +91,9 @@ def get_ext_int_qcar_real(self, params, camera_id):
         )
 
     cav_id = params.get("qcar_provenance", {}).get("cav_id") or params.get("_qcar_cav_id")
-    # PretrainFront's yaml predates the cav_id field and is 100% qcar-52775,
-    # so default to its refined (v2) geometry: extrinsic + marker-to-
-    # physical-center offset, both verified 2026-09-14.
-    R_cb, t_cb = CAMERA_PARAMS.get(str(cav_id), CAMERA_PARAMS["1"])
+    # PretrainFront's yaml predates the cav_id field (100% qcar-52775):
+    # qcar/conf.json's extrinsic_unlabeled_cav_id names the agent to use.
+    R_cb, t_cb = CAMERA_PARAMS[str(cav_id) if cav_id else UNLABELED_CAV_ID]
 
     ego_yaw_rad = np.radians(yaw)
     c, s = np.cos(ego_yaw_rad), np.sin(ego_yaw_rad)

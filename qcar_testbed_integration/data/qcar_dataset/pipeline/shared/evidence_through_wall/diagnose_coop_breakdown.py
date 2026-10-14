@@ -30,7 +30,7 @@ from opencood.data_utils.datasets import build_dataset  # noqa: E402
 from opencood.tools import train_utils  # noqa: E402
 
 from build_coop_train_val_dataset import (  # noqa: E402
-    STATIC_TARGETS, WALL_BLOCKED, SCALE, apply_marker_offset, truly_visible_to_agent,
+    AGENT_MARKER_OFFSET, PEER_ID, STATIC_TARGETS, WALL_BLOCKED, SCALE, apply_marker_offset, truly_visible_to_agent,
 )
 
 DIST_THRESH_X10 = 3.0  # ~0.3m real; a predicted box within this of the expected
@@ -91,7 +91,7 @@ def main():
             targets_world = {vid: apply_marker_offset(
                 {**STATIC_TARGETS[vid], "yaw_rad": STATIC_TARGETS[vid]["yaw_rad"]})
                 for vid in ("3", "4")}
-            peer_world = apply_marker_offset(peer)
+            peer_world = apply_marker_offset(peer, AGENT_MARKER_OFFSET[PEER_ID])
 
             vis3_to_1 = False if ("1", "3") in WALL_BLOCKED else truly_visible_to_agent(
                 targets_world["3"]["x"], targets_world["3"]["y"], targets_world["3"]["z"],

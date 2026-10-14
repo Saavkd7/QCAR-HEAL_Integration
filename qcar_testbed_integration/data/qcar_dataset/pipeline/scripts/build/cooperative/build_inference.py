@@ -107,19 +107,11 @@ SCALE = 10.0
 EGO_ID, PEER_ID = "1", "2"
 PAIR_TOLERANCE_SEC = _conf["pair_tolerance_sec"]  # same real-time pairing tolerance used for training
 
-# Physical car registry -- same identity mapping as build_coop_train_val_dataset.py's
-# CAR_REGISTRY, kept as a Python constant (not conf.json) on purpose: it's
-# fixed hardware identity, not a run parameter, and auto-deriving it by
-# sorting IPs on disk would risk silently swapping which car is agent "1"
-# vs "2" (see build_coop_train_val_dataset.py's own CAR_REGISTRY comment for why).
-CAR_REGISTRY = {
-    EGO_ID: {"ip": "192.168.1.198", "calib_name": "qcar52775",
-             "car_label": "qcar-52775 (192.168.1.198)",
-             "vis_mask_file": "qcar52775_bev_visibility.png"},
-    PEER_ID: {"ip": "192.168.1.158", "calib_name": "qcar52776",
-              "car_label": "qcar-52776 (192.168.1.158)",
-              "vis_mask_file": "qcar52776_bev_visibility.png"},
-}
+# Physical car registry -- conf.json's vehicles, the same entries
+# build_coop_train_val_dataset.py reads. Agent ids are declared there
+# explicitly, never auto-derived by sorting IPs on disk (that would risk
+# silently swapping which car is agent "1" vs "2").
+CAR_REGISTRY = {aid: _conf["vehicles"][aid] for aid in (EGO_ID, PEER_ID)}
 
 
 def _load_cam_params():
@@ -138,7 +130,8 @@ def _load_cam_params():
 
 
 CAM_PARAMS = _load_cam_params()
-FRONT_MOUNT_XYZ = (0.1930, 0.0, 0.0953)  # manual value, used for cam_cords (rotation handled by the patch)
+_EXTR = _conf["camera_extrinsics"]
+FRONT_MOUNT_XYZ = tuple(_EXTR[_EXTR["cam_cords_mount"]]["t_cb_m"])  # cam_cords (rotation handled by the patch)
 
 _TRAJ_INDEX_RE = re.compile(r"^converted_.+_(\d+)$")
 

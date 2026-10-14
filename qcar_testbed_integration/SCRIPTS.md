@@ -70,7 +70,6 @@ real-data/real-code smoke-test build instead.
 | `diagnose_nms_duplicates.py` | Sweeps `nms_thresh` to find the real tradeoff between merging duplicate boxes on the same target and losing genuine nearby detections. |
 | `diagnose_visibility_margin.py` | Tests whether widening the FOV-visibility check's margin reclassifies more frames as "should be visible." |
 | `compare_extrinsic_nominal_vs_calibrated.py` | Quantifies how much qcar-52775's real calibrated extrinsic differs from the manufacturer's nominal value — pixel-space projection shift and how many frames flip visibility, over all 9 real trajectories. |
-| `find_nan_frame.py` | Scans a validate set one frame at a time (batch size 1, CPU) to find exactly which frame produces NaN/Inf loss. |
 
 ### `scripts/visualize/`
 

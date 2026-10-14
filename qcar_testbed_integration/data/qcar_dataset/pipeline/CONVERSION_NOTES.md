@@ -18,7 +18,7 @@ pipeline/
                   pretrain_encoder/  build_pretrain_manifest.py / _labels.py / _dataset.py
                                      (blocked on an external drive, see status table below), conf.json
                   tools/             build_visibility_mask.py, build_smoketest_dev_split.py (active), conf.json
-    diagnose/   diagnose_*.py, find_nan_frame.py, compare_extrinsic_nominal_vs_calibrated.py
+    diagnose/   diagnose_*.py, compare_extrinsic_nominal_vs_calibrated.py
     visualize/  visualize_boxes.py, analyze_bev_visibility_mask.py
   datasets/     CoopFront/, SmokeTestFront/, SmokeTestFront_dev/, PretrainFront/
   shared/       visibility_masks/, scene.json (walls + parked cars), evidence_through_wall/, pairing_by_walltime.json,

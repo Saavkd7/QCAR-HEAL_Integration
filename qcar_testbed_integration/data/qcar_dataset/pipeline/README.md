@@ -134,18 +134,8 @@ Every diagnostic script needs a trained run to inspect:
 | `--no_amp` | disable mixed-precision inference |
 
 The `diagnose_*.py` scripts import `build_coop_train_val_dataset.py`, so
-their CoopFront settings (paths, walls, static targets) come from
+their settings (paths, sessions; car and track facts via calibration/vehicles.json and shared/scene.json) come from
 `scripts/build/cooperative/conf.json`.
-
-`find_nan_frame.py` is the exception (a `main()`-only script, no `--model_dir`);
-its defaults live in `scripts/diagnose/conf.json`:
-
-| flag | conf.json key (current value) | meaning |
-|---|---|---|
-| `--heal-root` | `heal_root` (`..`, i.e. HEAL/) | HEAL repo root, so `opencood/hypes_yaml/...` resolves |
-| `--hypes` | `hypes` (`qcar/configs/camera_attfuse_pretrain.yaml`) | relative to `--heal-root` |
-| `--checkpoint-glob` | `checkpoint_glob` (`opencood/logs/HeterBaseline_opv2v_camera_attfuse_qcar_pretrain_*`) | relative to `--heal-root`; last match (sorted) is used |
-| `--checkpoint-name` | `checkpoint_name` (`net_epoch_bestval_at1.pth`) | checkpoint file inside that run |
 
 ## `scripts/visualize/*.py`
 

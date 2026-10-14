@@ -42,11 +42,13 @@ and run with no flags; a flag overrides it for one run.
 4. **Train or evaluate one model:** `python qcar/train.py` /
    `python qcar/eval.py` (defaults in `qcar/conf.json`).
 5. **Compare the HEAL fusion methods:** `python qcar/zoo.py train`, then
-   `python qcar/compare.py`. The current results are in
-   `checkpoints/qcar/zoo/COMPARISON.md`, and each method's config, logs and
-   metrics are in `checkpoints/qcar/zoo/<method>/`. The weights (`.pth`) are
-   not in git; download them from Hugging Face with
-   `hf download Saavkd7/qcar-heal-zoo --local-dir checkpoints/qcar/zoo`.
+   `python qcar/compare.py`. Each method starts from HEAL's released OPV2V
+   (CARLA) camera checkpoints (`init` in `qcar/zoo.json`); results land in
+   `checkpoints/qcar/zoo/COMPARISON.md` and `checkpoints/qcar/zoo/<method>/`.
+   The zoo was emptied 2026-10-14 to retrain on CoopFront_Full with the
+   manufacturer camera extrinsic; the previous zoo (trained on CoopFront with
+   qcar-52775's refined extrinsic) is archived on Hugging Face
+   (`Saavkd7/qcar-heal-zoo`) and in git history.
 6. **See cooperation happen:** open `qcar_rounds.ipynb` at the repo root. It
    replays the validation trajectories round by round: cameras, BEV features,
    boxes against GT, and cooperative vs. ego-only metrics.

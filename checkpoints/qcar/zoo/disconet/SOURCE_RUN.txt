@@ -1,2 +1,0 @@
-trained run: opencood/logs/QCarZoo_disconet_2026_09_23_20_35_25
-config: qcar/configs/zoo/disconet.yaml

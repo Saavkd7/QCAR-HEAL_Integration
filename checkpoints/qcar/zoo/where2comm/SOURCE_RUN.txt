@@ -1,2 +1,0 @@
-trained run: opencood/logs/QCarZoo_where2comm_2026_09_24_01_37_48
-config: qcar/configs/zoo/where2comm.yaml

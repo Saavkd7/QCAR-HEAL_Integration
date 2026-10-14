@@ -39,9 +39,9 @@ Nothing is hardcoded here. qcar/conf.json's vehicles_json names
 qcar_testbed_integration/calibration/vehicles.json (the same file the dataset
 builders read, so building and training cannot disagree): vehicles.<cav_id>.
 camera_extrinsic picks an entry of camera_extrinsics (R_cb, t_cb_m, source).
-Today: qcar-52775 uses its 19-point refined fit (2026-09-14, median
-reprojection error 7.7px); qcar-52776 uses the Quanser manual's nominal
-csi_front_to_body (p.9), not yet refined. A yaml without
+Since 2026-10-14 both cars use the Quanser manual's nominal
+csi_front_to_body (p.9); qcar-52775's 19-point refined fit stays in
+vehicles.json as the alternative to test first if detection degrades. A yaml without
 qcar_provenance.cav_id (PretrainFront) gets qcar/conf.json's
 extrinsic_unlabeled_cav_id.
 """

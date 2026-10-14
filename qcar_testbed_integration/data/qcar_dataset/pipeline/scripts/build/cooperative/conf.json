@@ -1,16 +1,22 @@
 {
-  "_comment": "PATHS AND RUN PARAMETERS for build_coop_train_val_dataset.py and build_inference.py -- no physical facts here (cars: calibration/vehicles.json; track: shared/scene.json). Edit this file and run a script with NO flags; a CLI flag overrides the matching key for that one run only; no script ever writes this file. Every path is relative to the qcar_testbed_integration/ root, or '${key}/...' for a folder that exists on one machine only (defined in that machine's machine_paths.json, see machine_paths.py).",
+  "_comment": "PATHS AND RUN PARAMETERS for build_coop_train_val_dataset.py and build_inference.py -- no physical facts here (cars: calibration/vehicles.json; track: shared/scene.json). Edit this file and run a script with NO flags; a CLI flag overrides the matching key for that one run only; no script ever writes this file. Every path is relative to the qcar_testbed_integration/ root, or '${key}/...' for a folder that exists on one machine only (defined in that machine's machine_paths.json, see machine_paths.py). build_sessions: which sessions this build includes (null = all); out_dir is the dataset it writes (destroyed and rebuilt every run).",
   "vehicles_json": "calibration/vehicles.json",
   "scene_json": "data/qcar_dataset/pipeline/shared/scene.json",
   "calib_root": "calibration/calibration_Matries",
   "onboard_root": "data/qcar_onboard/Training/ExperimentNo1",
-  "out_dir": "data/qcar_dataset/pipeline/datasets/CoopFront_Full",
+  "out_dir": "data/qcar_dataset/pipeline/datasets/CoopFront_Detection",
   "inference_out_dir": "data/qcar_dataset/pipeline/inference_data/InferenceFront",
   "vis_masks_dir": "data/qcar_dataset/pipeline/shared/visibility_masks",
   "val_indices": "07,08",
   "agents": "1,2",
   "pair_tolerance_sec": 0.04,
   "max_trajectories": null,
+  "build_sessions": [
+    "2026-10-02",
+    "2026-10-05",
+    "2026-10-13",
+    "2026-10-14"
+  ],
   "sessions": [
     {
       "_comment": "2026-09-13/14, 9 trajectories, two parked QCars as static_targets. root=null means onboard_root; val=null means val_indices.",
@@ -42,10 +48,7 @@
         "vehicle": "third",
         "file": "third_vehicle_vicon_pose.json"
       },
-      "val": [
-        "05",
-        "09"
-      ]
+      "val": []
     },
     {
       "name": "2026-10-05",
@@ -63,12 +66,55 @@
         "vehicle": "third",
         "file": "third_vehicle_vicon_pose.json"
       },
+      "val": []
+    },
+    {
+      "_comment": "single pilot run (Scene1_Pilot_01); frames before the collision only (Detection/)",
+      "name": "2026-10-13",
+      "layout": "frames",
+      "root": "${dataset_root}/Detection/2026-10-13",
+      "agent_dirs": {
+        "1": "192.168.0.73",
+        "2": "192.168.0.89"
+      },
+      "pair_runs_by": "name",
+      "scenario": "qcar_20261013_{name}",
+      "dynamic_target": {
+        "id": "3",
+        "node": "Node9",
+        "vehicle": "third",
+        "file": "third_vehicle_vicon_pose.json"
+      },
+      "val": []
+    },
+    {
+      "_comment": "37 runs per car: 27 collision runs cut before the collision + route Node18Via12To0_Peer_Node22.1To9 (00-04 cut, 05-09 no contact). That whole route is held out as validation: never seen in training.",
+      "name": "2026-10-14",
+      "layout": "frames",
+      "root": "${dataset_root}/Detection/2026-10-14",
+      "agent_dirs": {
+        "1": "192.168.0.73",
+        "2": "192.168.0.89"
+      },
+      "pair_runs_by": "name",
+      "scenario": "qcar_20261014_{name}",
+      "dynamic_target": {
+        "id": "3",
+        "node": "Node9",
+        "vehicle": "third",
+        "file": "third_vehicle_vicon_pose.json"
+      },
       "val": [
-        "Ego_Node13Via1To13_Peer_Node15To6_03",
-        "Ego_Node13Via1To13_Peer_Node15To6_04",
-        "Ego_Node15Via6To8_Peer_Node18To12_01",
-        "Ego_Node15Via6To8_Peer_Node3To1_01",
-        "Ego_Node15Via6To8_Peer_Node3To1_08"
+        "Ego_Node18Via12To0_Peer_Node22.1To9_00",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_01",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_02",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_03",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_04",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_05",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_06",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_07",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_08",
+        "Ego_Node18Via12To0_Peer_Node22.1To9_09"
       ]
     }
   ]

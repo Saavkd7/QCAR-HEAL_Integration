@@ -213,8 +213,9 @@ _parser.add_argument(
          "smoke-test build from 100%% real data/code. null = every discovered "
          "trajectory (default: conf.json's max_trajectories)")
 _parser.add_argument(
-    "--sessions", default=None,
-    help="Comma-separated conf.json session names to build (default: every session)")
+    "--sessions", default=_conf["build_sessions"],
+    help="Comma-separated conf.json session names to build (default: conf.json's "
+         "build_sessions; null = every session)")
 # add_help=False means -h/--help would otherwise be silently ignored (and
 # this DESTRUCTIVE script -- main() does shutil.rmtree(DST) then rebuilds --
 # would run for real). Handle it manually, only when run as a script (never
@@ -737,8 +738,11 @@ def _scene_targets(session, frame_group):
 
 
 def main():
-    sessions = [s for s in _conf["sessions"] if not _args.sessions
-                or s["name"] in _args.sessions.split(",")]
+    wanted = _args.sessions.split(",") if isinstance(_args.sessions, str) else _args.sessions
+    unknown = sorted(set(wanted or []) - {s["name"] for s in _conf["sessions"]})
+    if unknown:
+        raise SystemExit("build_sessions / --sessions name unknown session(s): %s" % unknown)
+    sessions = [s for s in _conf["sessions"] if not wanted or s["name"] in wanted]
     if not sessions:
         raise SystemExit("No session selected (conf.json sessions / --sessions)")
     for s in sessions:

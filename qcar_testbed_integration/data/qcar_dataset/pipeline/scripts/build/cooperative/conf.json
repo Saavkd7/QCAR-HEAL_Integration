@@ -1,5 +1,5 @@
 {
-  "_comment": "PATHS AND RUN PARAMETERS for build_coop_train_val_dataset.py and build_inference.py -- no physical facts here (cars: calibration/vehicles.json; track: shared/scene.json). Edit this file and run a script with NO flags; a CLI flag overrides the matching key for that one run only; no script ever writes this file. Every path is relative to the qcar_testbed_integration/ root, or '${key}/...' for a folder that exists on one machine only (defined in that machine's machine_paths.json, see machine_paths.py). build_sessions: which sessions this build includes (null = all); out_dir is the dataset it writes (destroyed and rebuilt every run).",
+  "_comment": "PATHS AND RUN PARAMETERS for build_coop_train_val_dataset.py and build_inference.py -- no physical facts here (cars: calibration/vehicles.json; track: shared/scene.json). Edit this file and run a script with NO flags; a CLI flag overrides the matching key for that one run only; no script ever writes this file. Every path is relative to the qcar_testbed_integration/ root, or '${key}/...' for a folder that exists on one machine only (defined in that machine's machine_paths.json, see machine_paths.py). build_sessions: which sessions this build includes (null = all); out_dir is the dataset it writes (destroyed and rebuilt every run). heal_modality: HEAL modality id of every QCar agent (camera, 'm2' in qcar/configs), written to <out_dir>/modality_assign.json.",
   "vehicles_json": "calibration/vehicles.json",
   "scene_json": "data/qcar_dataset/pipeline/shared/scene.json",
   "calib_root": "calibration/calibration_Matries",
@@ -10,6 +10,7 @@
   "val_indices": "07,08",
   "agents": "1,2",
   "pair_tolerance_sec": 0.04,
+  "heal_modality": "m2",
   "max_trajectories": null,
   "build_sessions": [
     "2026-10-02",

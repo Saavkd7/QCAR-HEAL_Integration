@@ -737,6 +737,17 @@ def _scene_targets(session, frame_group):
     return targets
 
 
+def write_modality_assign(dst, scenario_names):
+    """<dst>/modality_assign.json: HEAL's heter assignment (scenario -> cav id ->
+    modality) for every scenario of this dataset, so the training yaml's
+    heter.assignment_path can point next to the data. HEAL looks it up at
+    validation/inference only; every QCar agent is conf.json's heal_modality."""
+    assign = {name: {aid: _conf["heal_modality"] for aid in AGENT_IDS}
+              for name in sorted(scenario_names)}
+    with open(os.path.join(dst, "modality_assign.json"), "w") as f:
+        json.dump(assign, f, indent=2)
+
+
 def main():
     wanted = _args.sessions.split(",") if isinstance(_args.sessions, str) else _args.sessions
     unknown = sorted(set(wanted or []) - {s["name"] for s in _conf["sessions"]})
@@ -773,6 +784,7 @@ def main():
 
     with open(os.path.join(DST, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
+    write_modality_assign(DST, manifest["pairs"])
     print("\n" + json.dumps(manifest["splits"], indent=2))
 
 

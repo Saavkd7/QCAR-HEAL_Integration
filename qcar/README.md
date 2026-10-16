@@ -45,10 +45,10 @@ and run with no flags; a flag overrides it for one run.
    `python qcar/compare.py`. Each method starts from HEAL's released OPV2V
    (CARLA) camera checkpoints (`init` in `qcar/zoo.json`); results land in
    `checkpoints/qcar/zoo/COMPARISON.md` and `checkpoints/qcar/zoo/<method>/`.
-   The zoo was emptied 2026-10-14 to retrain on CoopFront_Full with the
-   manufacturer camera extrinsic; the previous zoo (trained on CoopFront with
-   qcar-52775's refined extrinsic) is archived on Hugging Face
-   (`Saavkd7/qcar-heal-zoo`) and in git history.
+   Trained checkpoints are not published yet: the first zoo (September,
+   validated on runs of the same routes it trained on) did not generalize to
+   new routes and was withdrawn; a new one is being trained and validated on a
+   held-out route.
 6. **See cooperation happen:** open `qcar_rounds.ipynb` at the repo root. It
    replays the validation trajectories round by round: cameras, BEV features,
    boxes against GT, and cooperative vs. ego-only metrics.

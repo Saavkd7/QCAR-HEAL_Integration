@@ -146,7 +146,8 @@ class LiveModel:
         if not epoch:
             raise SystemExit(
                 "No checkpoint (.pth) in %s -- the model would run with random weights.\n"
-                "Download the zoo:  hf download Saavkd7/qcar-heal-zoo --local-dir checkpoints/qcar/zoo"
+                "Train one first (python qcar/zoo.py train <method>) or copy a trained run there "
+                "(checkpoints are not published yet)."
                 % model_dir)
         print("[realtime] weights loaded: epoch %s from %s" % (epoch, model_dir))
         # CUDA only: HEAL's camera encoder (heter_encoders.py) calls .cuda()

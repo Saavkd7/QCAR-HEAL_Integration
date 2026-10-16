@@ -1,0 +1,89 @@
+{
+  "_comment": "PHYSICAL FACTS about the lab track, Vicon world frame, real metres (unscaled). Single source for the dataset builders, wall_geometry.py and the realtime viewer. Vehicles themselves are in calibration/vehicles.json.",
+  "walls_comment": "Measured from media/Walls_Layout+Scenario1.jpeg, user-confirmed 2026-09-22. Add more walls by appending to the list below -- no code change needed, wall_geometry.py reads every entry.",
+  "walls": [
+    {
+      "id": "wall1",
+      "a": [
+        -1.97,
+        -0.099
+      ],
+      "b": [
+        -1.97,
+        -1.099
+      ]
+    },
+    {
+      "id": "wall2",
+      "a": [
+        -0.97,
+        -0.053
+      ],
+      "b": [
+        -1.97,
+        -0.053
+      ]
+    },
+    {
+      "id": "wall3",
+      "a": [
+        -0.989,
+        0.697
+      ],
+      "b": [
+        -1.989,
+        0.697
+      ]
+    },
+    {
+      "id": "wall4",
+      "a": [
+        -0.2945,
+        -0.0745
+      ],
+      "b": [
+        0.7055,
+        -0.0745
+      ]
+    },
+    {
+      "id": "wall5",
+      "a": [
+        -0.275,
+        1.734
+      ],
+      "b": [
+        -0.275,
+        0.734
+      ]
+    }
+  ],
+  "static_targets_comment": "QCars PARKED during ExperimentNo1 (2026-09-13/14), present for the whole capture; Vicon pose of their Vicon origin, injected into every frame. 'vehicle' names an entry of parked_vehicles.",
+  "static_targets": {
+    "3": {
+      "x": -0.8286,
+      "y": 1.3477,
+      "z": 0.1226,
+      "yaw_rad": -1.5716,
+      "node": "Node9",
+      "vehicle": "qcar"
+    },
+    "4": {
+      "x": 0.4242,
+      "y": 0.5084,
+      "z": 0.1287,
+      "yaw_rad": 3.1136,
+      "node": "Node11",
+      "vehicle": "qcar"
+    }
+  },
+  "parked_vehicles": {
+    "qcar": {
+      "marker_to_center_fwd_m": 0.0343,
+      "marker_to_center_lat_m": -0.0209,
+      "length_m": 0.425,
+      "width_m": 0.192,
+      "source": "The parked cars' own offsets were never measured; this is qcar-52775's 2026-09-14 tape measurement (independently recovered as 0.0334, -0.0178 by a 19-point image/Vicon fit)."
+    }
+  }
+}

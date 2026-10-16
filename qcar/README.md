@@ -1,0 +1,195 @@
+# QCar Real-Testbed Integration
+
+> Developed by **Kevin Saavedra** (MSc, University of Calabria)
+> Collaborators **Daryel León** (PhD student, Concordia University)
+	     **Wissam Fawaz** (Lebanese American University). 
+> Supervisors : **Chadi Assi** (Host, Concordia University) 
+> 	     **Floriano De Rango** (Home, University of Calabria), with
+> 
+> As a Part of the MITACS program.
+
+Camera-only HEAL driven by live sensor data from Quanser QCar physical
+vehicles, instead of the simulated OPV2V/V2XSet/V2X-Sim/DAIR-V2X-C datasets.
+`qcar/` is a standalone package that **imports** `opencood` and never edits
+it: `opencood/` on this branch is identical to upstream HEAL.
+
+## Start here: from the cars to a trained model
+
+Two directories, one project:
+- `qcar/` holds training, evaluation, the model zoo and the round-by-round
+  notebook.
+- `qcar_testbed_integration/` holds everything upstream of HEAL: getting
+  recordings off the cars, calibration, and turning ROS bags into a HEAL
+  dataset. Its index is `qcar_testbed_integration/SCRIPTS.md`.
+
+Every script takes its defaults from a `conf.json` next to it. Edit that file
+and run with no flags; a flag overrides it for one run.
+
+1. **Install.** Follow the root `README.md` Installation section (Python 3.8,
+   PyTorch 1.12 + CUDA 11.6, `python setup.py develop`, the IoU extension).
+   The camera encoder needs a CUDA GPU; 4 GB is enough for inference.
+2. **Get the data.** Raw bags and built datasets (~27 GB) are not in git. Ask
+   the maintainer and place them under `qcar_testbed_integration/data/`. The
+   configs reach them through the tracked symlink
+   `qcar_dataset -> qcar_testbed_integration/data/qcar_dataset`.
+3. **From recordings to a dataset** (only if you record new data): pull the
+   bags (`data/qcar_onboard/_tools/pull_qcar_bags.py`), split them into frames
+   (`scripts/convert/bag_to_dataset_rosbags.py`), then build the cooperative
+   dataset (`scripts/build/cooperative/build_coop_train_val_dataset.py`, which
+   writes `CoopFront/`). The order and every flag are in `SCRIPTS.md` and
+   `data/qcar_dataset/pipeline/README.md`; what is real and what is assumed
+   in each dataset is in `CONVERSION_NOTES.md`.
+4. **Train or evaluate one model:** `python qcar/train.py` /
+   `python qcar/eval.py` (defaults in `qcar/conf.json`).
+5. **Compare the HEAL fusion methods:** `python qcar/zoo.py train`, then
+   `python qcar/compare.py`. Each method starts from HEAL's released OPV2V
+   (CARLA) camera checkpoints (`init` in `qcar/zoo.json`); results land in
+   `checkpoints/qcar/zoo/COMPARISON.md` and `checkpoints/qcar/zoo/<method>/`.
+   The zoo was emptied 2026-10-14 to retrain on CoopFront_Full with the
+   manufacturer camera extrinsic; the previous zoo (trained on CoopFront with
+   qcar-52775's refined extrinsic) is archived on Hugging Face
+   (`Saavkd7/qcar-heal-zoo`) and in git history.
+6. **See cooperation happen:** open `qcar_rounds.ipynb` at the repo root. It
+   replays the validation trajectories round by round: cameras, BEV features,
+   boxes against GT, and cooperative vs. ego-only metrics.
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `train.py` | Training entry point. Mirrors `opencood/tools/train.py` but skips `open3d`-dependent visualization, keeps negative-only batches, supports AMP + gradient accumulation, dumps `resolved_hypes.json`. |
+| `eval.py` | Lean inference/eval (decode + NMS + recall@IoU + AP), no `open3d`. |
+| `visualize.py` | Draws predictions vs. ground truth on the camera image. |
+| `conf.json` | **Every default** of the three scripts. Run any of them with no flags. |
+| `config.py` | conf.json loading, CLI > yaml > conf.json precedence, plugin import, `--set` overrides. |
+| `registry.py` | Model/loss factories that resolve `core_method` from any package, not only `opencood.*`. |
+| `patches/patch_1cam_loader.py` | Plugin: `OPV2VBaseDataset.find_camera_files` reads only `camera0` (the QCar rig is single-camera; HEAL hardcodes 4 CARLA cameras). |
+| `patches/patch_real_extrinsic.py` | Plugin: `OPV2VBaseDataset.get_ext_int` uses the QCar's real camera-to-vehicle rotation instead of HEAL's CARLA/UE4 mirror fix-up. |
+| `losses/point_pillar_depth_balanced_bce_loss.py` | Balanced-BCE variant of `PointPillarDepthLoss`; `SigmoidFocalLoss` collapsed to all-negative on QCar. |
+| `losses/point_pillar_pyramid_balanced_bce_loss.py` | Same correction for Pyramid Fusion: detection head uses balanced BCE (via MRO), per-level occupancy loss unchanged. |
+| `patches/heal_disco_fuse.py` | Plugin: restores `opencood.models.fuse_modules.disco_fuse` (missing upstream; DiscoNet cannot be built without it) from the authors' snapshot next to the released checkpoint. |
+| `zoo.py` / `zoo.json` | Model zoo: every HEAL fusion trained on QCar with one recipe, one clean loadable folder per method in `checkpoints/qcar/zoo/` (see below). |
+| `rounds.py` + `../qcar_rounds.ipynb` | Round-by-round cooperative replay: ego runs live, peer's pre-fusion feature loaded from a cache as if received, GT-scored with running metrics, cameras + BEV drawn every round (below). |
+| `configs/*.yaml` | Experiment configs (below). `configs/zoo/` is generated by `zoo.py configs`; edit `zoo.json`, not those files. |
+
+## Plug-and-play: choosing modules by config or by flag
+
+Every module choice can come from three places. Highest wins:
+
+    CLI flag  >  experiment yaml (or a run's resolved_hypes.json)  >  qcar/conf.json
+
+| What | conf.json key | yaml key | CLI flag |
+|---|---|---|---|
+| Plugins imported before the dataset is built (dotted module **or** `.py` path) | `plugins` | `_qcar_plugins` | `--plugins a,b` (`''` = none) |
+| Packages searched for `model.core_method` | `model_packages` | `_qcar_model_packages` | `--model_packages` |
+| Packages searched for `loss.core_method` | `loss_packages` | `_qcar_loss_packages` | `--loss_packages` |
+| Any hypes value by dotted path | `overrides` | (the yaml itself) | `--set KEY=VALUE` (repeatable) |
+
+`model.core_method` / `loss.core_method` accept HEAL's plain names
+(`heter_model_baseline`, searched in each package in order), a full module
+path (`my_pkg.models.my_fusion`), or `module:ClassName`. The resolved lists
+are written to `resolved_hypes.json`, so `eval.py` / `visualize.py` replay
+exactly the modules training used.
+
+**Fusion** inside `heter_model_baseline` is `model.args.fusion_method`:
+`max`, `att`, `disconet`, `v2vnet`, `v2xvit`, `cobevt`, `where2comm`, `who2com`.
+A different model is a different yaml (e.g. `configs/zoo/pyramid.yaml`
+uses `heter_pyramid_collab`).
+
+```bash
+python qcar/train.py                                            # everything from conf.json
+python qcar/train.py -y qcar/configs/zoo/pyramid.yaml
+python qcar/train.py --set model.args.fusion_method=max        # swap fusion
+python qcar/train.py --plugins qcar.patches.patch_1cam_loader  # only one patch
+python qcar/train.py --plugins my_lab/extra_patch.py           # your own plugin file
+python qcar/eval.py                                             # conf.json eval_* keys
+python qcar/eval.py --model_dir opencood/logs/<run> --split validate
+python qcar/visualize.py --model_dir opencood/logs/<run> --n 8
+```
+
+A plugin is any module that applies itself on import (see `patches/`).
+`--set` runs after the yaml's `yaml_parser`, so it does not re-derive anchors
+or grid sizes: change `cav_lidar_range` / `voxel_size` in the yaml instead.
+
+Relative paths in `conf.json` and in the yamls resolve against the HEAL repo
+root (the scripts `chdir` there); relative paths passed on the CLI resolve
+against your cwd.
+
+## Configs
+
+`qcar/configs/`:
+
+- `camera_attfuse_coop.yaml`: **the base** of every zoo method -- data paths
+  (`root_dir` / `validate_dir`), 1 front camera, anchors, loss, optimizer,
+  schedule. Change the dataset here, then run `python qcar/zoo.py configs`.
+- `zoo/<method>.yaml`: generated by `zoo.py configs` (base + that method's OPV2V
+  `model`); never edit them by hand.
+  (The single-agent pretrain / front-only / opv2v_ready configs were removed
+  2026-10-14: their datasets no longer exist; they remain in git history.)
+
+`_qcar_*` keys are this package's own settings, not stock HEAL fields:
+
+| Key | Meaning |
+|---|---|
+| `_qcar_pretrained_checkpoint` | full-model weights loaded before fine-tuning (must match the architecture exactly) |
+| `_qcar_encoder_initialization_checkpoint` | when the above is null: transplant only encoder tensors from this checkpoint |
+| `_qcar_encoder_initialization_prefixes` | which state-dict prefixes to transplant (default `encoder_<ego_modality>.`) |
+| `_qcar_freeze_encoder_blocks` | freeze stem + first N EfficientNet blocks |
+| `_qcar_freeze_module` | attribute path(s) of the trunk(s) to freeze (default `encoder_<ego_modality>.camencode.trunk`) |
+| `_qcar_plugins`, `_qcar_model_packages`, `_qcar_loss_packages` | module selection, see above |
+
+## Dataset layout expected by these configs
+
+`root_dir` / `validate_dir` / `test_dir` point at
+`qcar_dataset/pipeline/datasets/<split-name>/{train,validate,test}`, relative to the
+repo root, in the per-frame layout HEAL's OPV2V loader expects
+(`<frame_id>_camera0.png` + `<frame_id>.yaml`). That path is a symlink
+(`qcar_dataset -> qcar_testbed_integration/data/qcar_dataset`) into
+`qcar_testbed_integration/`, the physical-testbed directory nested at the repo
+root. Its code is tracked on this branch: recording tools
+(`data/qcar_onboard/_tools/`), the bag-to-dataset pipeline
+(`data/qcar_dataset/pipeline/`), calibration tools and verified intrinsics, and
+notebooks. Start at its `SCRIPTS.md`. The raw data it works on (ROS bags,
+per-frame captures, built datasets, ~27 GB) is not in git; its `.gitignore`
+whitelists what is.
+
+**Checkpoints:** `checkpoints/` at the repo root; `checkpoints/qcar/` holds
+the one checkpoint the configs reference (see its `README.md`).
+
+## Model zoo (camera-only today, LiDAR-ready)
+
+```bash
+python qcar/zoo.py configs   # generate qcar/configs/zoo/<method>.yaml from zoo.json
+python qcar/zoo.py check     # build + init + 2 AMP steps per method, peak GPU memory
+python qcar/zoo.py train     # sequential queue: train -> eval -> collect, resumable
+python qcar/eval.py --model_dir checkpoints/qcar/zoo/<method>
+```
+
+Methods: `att`, `max` (F-Cooper), `disconet`, `v2xvit` (each from its released
+OPV2V checkpoint), `v2vnet`, `cobevt`, `where2comm`, `who2com`, `coalign`,
+`pyramid` (encoder/backbone/aligner transplanted from attfuse). Every method
+declares a `sensor`; configs are built from `bases[sensor]`, so adding LiDAR
+means adding `bases.lidar` plus lidar methods in `zoo.json`, with no change
+to `zoo.py`. Per-method fixes for upstream issues (`feature_stride`,
+`agent_size`, the `camera_coalign.yaml` typo, fp32 for CoAlign) live in
+`zoo.json` as data, each with a `_note`.
+
+## Round-by-round replay (`qcar_rounds.ipynb`)
+
+Open `qcar_rounds.ipynb` at the repo root (kernel: the `heal38` environment).
+Each round is one dataset frame, in temporal order:
+- The **ego** runs live: encoder, then BEV backbone.
+- The **peer's** transmitted feature (the per-agent BEV feature right before
+  fusion, which is what HEAL sends) comes from a per-method cache built on
+  first use (`rounds_cache_dir`, ~0.5 GB per method).
+- Then fusion, the head and NMS. Boxes are scored against GT per round, with
+  running AP and recall, next to an ego-only pass of the same round.
+
+A model is split into four stages: `encoder`, `bev_backbone`, `fusion` and
+`head`. Every checkpoint key maps to exactly one stage (`rounds.STAGE_PREFIXES`).
+The fusion method (`rounds_method`, or the notebook's dropdown) fixes the
+architecture, and by default all of its weights come from that method's zoo
+run. `rounds_stage_sources` can load a stage from another run; this only works
+when the tensors match, and it warns, because stages trained apart need HEAL
+stage-2 alignment. All settings are the `rounds_*` keys in `conf.json`.
+

@@ -163,3 +163,45 @@ opencood/tools/save_params.py
 ./vscode
 .vscode
 opencood/tools/inference_w_noise_heter.py
+# Checkpoints (HuggingFace yifanlu/HEAL). Everything under a run folder is
+# gitignored -- it's re-downloadable per MANIFEST.md's checksums, not
+# authored here. Fixed 2026-09-18: the old rule only excluded *.zip/*.pth/
+# *.pt/tfevents, so each run's config.yaml/scripts/ code-snapshot/
+# vis_intermediate*/ images were NOT excluded -- caught before an
+# accidental ~1500-file/~350MB commit. Only the two curated top-level docs
+# are tracked.
+checkpoints/*/
+!checkpoints/MANIFEST.md
+!checkpoints/README.md
+
+# QCar model zoo (qcar/zoo.py): track everything that documents and
+# reproduces each run -- config.yaml, resolved_hypes.json, eval/run logs,
+# SOURCE_RUN.txt, COMPARISON/LOCALIZATION results, _logs/ (~400 KB total) --
+# but never the weights. Git cannot re-include a file under an excluded
+# directory, so the directories are re-included level by level.
+!checkpoints/qcar/
+checkpoints/qcar/*/
+!checkpoints/qcar/zoo/
+checkpoints/qcar/zoo/**/*.pth
+checkpoints/qcar/zoo/**/*.pt
+checkpoints/qcar/zoo/**/*.zip
+checkpoints/qcar/zoo/**/events.out.tfevents*
+# training/eval logs of each zoo run (the global *.log rule would drop them)
+!checkpoints/qcar/zoo/_logs/*.log
+# outputs of qcar/visualize.py when pointed at a zoo method
+checkpoints/qcar/zoo/**/visualize_*/
+
+# Jupyter autosaves (e.g. of qcar_rounds.ipynb)
+.ipynb_checkpoints/
+
+# qcar_testbed_integration/ -- the physical QCar testbed (recording tools,
+# dataset-building pipeline, calibration). Its code, configs and docs ARE
+# tracked on this branch; its own .gitignore whitelists them and keeps out the
+# raw data (~27 GB), tensors and result images. Nested here so relative
+# dataset paths in qcar/configs resolve locally.
+
+# AI-assistant instruction files stay local, at any level
+CLAUDE.md
+last_session.md
+# /qcar_dataset is a tracked relative symlink (-> qcar_testbed_integration/data/qcar_dataset)
+# that every qcar/configs dataset path goes through; do not ignore it.

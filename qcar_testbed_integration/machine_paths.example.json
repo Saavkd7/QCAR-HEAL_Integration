@@ -1,0 +1,7 @@
+{
+  "_comment": "Template for machine_paths.json (same folder, NOT in git): absolute paths that exist on one machine only. Tracked conf.json files reference them as \"${key}/...\". Define only the keys this machine actually has; a script that needs a missing key stops with a clear message.",
+  "dataset_root": "C:/Users/LuciaGroup/Desktop/Dataset",
+  "pretrain_corpus_root": "/path/to/Concordia_QCar_Dataset/Scenarios",
+  "quantv2x_repo": "/path/to/QuantV2X",
+  "coop_fusion_bench": "/path/to/Cooperative_Perception/bench/coop_fusion"
+}
